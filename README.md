@@ -1,6 +1,6 @@
 __Space Invaders (Project IAC)__
 ___
-This project consisted in recreating the old [space Invaders](https://en.wikipedia.org/wiki/Space_Invaders) game in PEPE Assembly.
+This project consisted in recreating the old [space invaders](https://en.wikipedia.org/wiki/Space_Invaders) game in PEPE Assembly.
 
 [Project Statement](docs/projeto-chuva-meteoros.pdf) | [Report](docs/grupo47.pdf)
 ___
