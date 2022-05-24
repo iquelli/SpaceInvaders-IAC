@@ -6,7 +6,7 @@
 ;
 
 ;=================================================================
-; NUMERIC CONSTANTS
+; NUMERIC CONSTANTS:
 ;-----------------------------------------------------------------
 
 DISPLAYS   EQU 0A000H
@@ -18,20 +18,32 @@ TRUE       EQU 0001H
 FALSE      EQU 0000H
 NULL       EQU 0000H
 
+;=================================================================
+; STACK POINTER INITIALIZATION:
+;-----------------------------------------------------------------
+
 PLACE 1000H
 
 ;=================================================================
-; VARIABLE DECLARATION
+; VARIABLE DECLARATION:
 ;-----------------------------------------------------------------
 
-KEY_PRESSED:  WORD NULL
+KEY_PRESSED:   WORD NULL
 KEY_CONVERTED: WORD NULL
+KEY_PRESSING:  WORD FALSE
 
 ;=================================================================
-; THE CODE
+; MAIN: the starting point of the program.
 ;-----------------------------------------------------------------
 
 PLACE 0000H
+
+main:
+	JMP main
+
+;=================================================================
+; KEY HANDLING:
+;-----------------------------------------------------------------
 
 key_Handling:
 	CALL key_Sweeper
@@ -128,15 +140,68 @@ key_CheckUpdate_Return:
 	MOVB  R1, [R3]
 	MOV   R3,  000FH
 	AND   R1,  R3
-	MOV   R3,  KEYPAD_COL
 	CMP   R1,  NULL
+	MOV   R3,  KEY_PRESSING
+	MOV  [R3], TRUE
+	MOV   R3,  KEYPAD_COL
 	JNZ   key_CheckUpdate_Return
 
-	POP  R3
-	POP  R2
-	POP  R1
-	POP  R0
+	MOV   R3,  KEY_PRESSING
+	MOV  [R3], FALSE
+
+	POP   R3
+	POP   R2
+	POP   R1
+	POP   R0
 	RET
 
 key_Actions:
+	PUSH R0
+	PUSH R1
+
+	MOV  R0,  KEY_PRESSING
+	MOV  R1,  KEY_CONVERTED
+
+key_Actions_Repeatable:
+	CMP [R1], 0000H
+	JZ   key_Action_0
+	CMP [R1], 0002H
+	JZ   key_Action_2
+	CMP [R1], 0001H
+	JZ   key_Action_1
+
+	CMP [R0], TRUE
+	JZ   key_Actions_Return
+
+key_Actions_Unrepeatable:
+	CMP [R1], 000CH
+	JZ   key_Action_C
+	CMP [R1], 000DH
+	JZ   key_Action_D
+	CMP [R1], 000EH
+	JZ   key_Action_E
+
+	JMP  key_Actions_Return
+
+key_Action_0:
+	JMP key_Actions_Return
+
+key_Action_2:
+	JMP key_Actions_Return
+
+key_Action_1:
+	JMP key_Actions_Return
+
+key_Action_C:
+	JMP key_Actions_Return
+
+key_Action_D:
+	JMP key_Actions_Return
+
+key_Action_E:
+	JMP key_Actions_Return
+
+key_Actions_Return:
+	POP R1
+	POP R0
 	RET
