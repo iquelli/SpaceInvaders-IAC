@@ -19,10 +19,24 @@ FALSE      EQU 0000H
 NULL       EQU 0000H
 
 ;=================================================================
+; IMAGE TABLES:
+;-----------------------------------------------------------------
+
+PLACE 2000H
+
+;=================================================================
 ; STACK POINTER INITIALIZATION:
 ;-----------------------------------------------------------------
 
 PLACE 1000H
+
+pile_init:
+	TABLE 100H
+SP_start:
+
+;=================================================================
+; INTERRUPTION TABLE:
+;-----------------------------------------------------------------
 
 ;=================================================================
 ; VARIABLE DECLARATION:
@@ -38,8 +52,17 @@ KEY_PRESSING:  WORD FALSE
 
 PLACE 0000H
 
+init:
+	MOV  SP, SP_start
+
 main:
-	JMP main
+	CALL key_Handling
+
+	JMP  main
+
+;=================================================================
+; GAME STATES:
+;-----------------------------------------------------------------
 
 ;=================================================================
 ; KEY HANDLING:
@@ -51,6 +74,9 @@ key_Handling:
 	CALL key_CheckUpdate
 	RET
 
+;
+;
+;
 key_Sweeper:
 	PUSH R0
 	PUSH R1
@@ -84,6 +110,9 @@ key_Sweeper_Save:
 	POP  R0
 	RET
 
+;
+;
+;
 key_Convert:
 	PUSH R0
 	PUSH R1
@@ -123,11 +152,15 @@ key_Convert_Return:
 	POP  R0
 	RET
 
+;
+;
+;
 key_CheckUpdate:
 	PUSH R0
 	PUSH R1
 	PUSH R2
 	PUSH R3
+	PUSH R4
 
 	MOV  R2,  KEY_PRESSED
 	MOVB R0, [R2]
@@ -135,51 +168,57 @@ key_CheckUpdate:
 	MOV  R3,  KEYPAD_COL
 
 key_CheckUpdate_Return:
-	CALL key_Actions
+	CALL  key_Actions
 	MOVB [R2], R0
 	MOVB  R1, [R3]
 	MOV   R3,  000FH
 	AND   R1,  R3
 	CMP   R1,  NULL
 	MOV   R3,  KEY_PRESSING
-	MOV  [R3], TRUE
+	MOV   R4, TRUE
+	MOV  [R3], R4
 	MOV   R3,  KEYPAD_COL
 	JNZ   key_CheckUpdate_Return
 
 	MOV   R3,  KEY_PRESSING
-	MOV  [R3], FALSE
+	MOV   R4,  FALSE
+	MOV  [R3], R4
 
+	POP   R4
 	POP   R3
 	POP   R2
 	POP   R1
 	POP   R0
 	RET
 
+;
+;
+;
 key_Actions:
 	PUSH R0
 	PUSH R1
 
-	MOV  R0,  KEY_PRESSING
-	MOV  R1,  KEY_CONVERTED
+	MOV  R0, [KEY_PRESSING]
+	MOV  R1, [KEY_CONVERTED]
 
 key_Actions_Repeatable:
-	CMP [R1], 0000H
-	JZ   key_Action_0
-	CMP [R1], 0002H
-	JZ   key_Action_2
-	CMP [R1], 0001H
-	JZ   key_Action_1
+	CMP R1, 0000H
+	JZ  key_Action_0
+	CMP R1, 0002H
+	JZ  key_Action_2
+	CMP R1, 0001H
+	JZ  key_Action_1
 
-	CMP [R0], TRUE
-	JZ   key_Actions_Return
+	CMP R0, TRUE
+	JZ  key_Actions_Return
 
 key_Actions_Unrepeatable:
-	CMP [R1], 000CH
-	JZ   key_Action_C
-	CMP [R1], 000DH
-	JZ   key_Action_D
-	CMP [R1], 000EH
-	JZ   key_Action_E
+	CMP R1, 0004H
+	JZ  key_Action_C
+	CMP R1, 0005H
+	JZ  key_Action_D
+	CMP R1, 0006H
+	JZ  key_Action_E
 
 	JMP  key_Actions_Return
 
@@ -205,3 +244,23 @@ key_Actions_Return:
 	POP R1
 	POP R0
 	RET
+
+;=================================================================
+; ROVER:
+;-----------------------------------------------------------------
+
+;=================================================================
+; ENERGY OF THE ROVER:
+;-----------------------------------------------------------------
+
+;=================================================================
+; MISSILE:
+;-----------------------------------------------------------------
+
+;=================================================================
+; METEOR:
+;-----------------------------------------------------------------
+
+;=================================================================
+; INTERRUPTION HANDLING:
+;-----------------------------------------------------------------
