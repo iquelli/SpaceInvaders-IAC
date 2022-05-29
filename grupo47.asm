@@ -17,34 +17,33 @@ LIN_MASK   EQU 0010H
 TRUE       EQU 0001H
 FALSE      EQU 0000H
 NULL       EQU 0000H
+NEXT_WORD  EQU 0002H
 
 ;=================================================================
-; IMAGE TABLES:
-;-----------------------------------------------------------------
-
-PLACE 2000H
-
-;=================================================================
-; STACK POINTER INITIALIZATION:
+; VARIABLE DECLARATION:
 ;-----------------------------------------------------------------
 
 PLACE 1000H
 
-pile_init:
-	TABLE 100H
-SP_start:
+KEY_PRESSED:   WORD NULL
+KEY_PRESSING:  WORD NULL
+KEY_UPDATE:    WORD FALSE
+
+;=================================================================
+; IMAGE TABLES:
+;-----------------------------------------------------------------
 
 ;=================================================================
 ; INTERRUPTION TABLE:
 ;-----------------------------------------------------------------
 
 ;=================================================================
-; VARIABLE DECLARATION:
+; STACK POINTER INITIALIZATION:
 ;-----------------------------------------------------------------
 
-KEY_PRESSED:   WORD NULL
-KEY_CONVERTED: WORD NULL
-KEY_PRESSING:  WORD FALSE
+pile_init:
+	TABLE 100H
+SP_start:
 
 ;=================================================================
 ; MAIN: the starting point of the program.
@@ -72,6 +71,7 @@ key_Handling:
 	CALL key_Sweeper
 	CALL key_Convert
 	CALL key_CheckUpdate
+	CALL key_Actions
 	RET
 
 ;
@@ -83,26 +83,26 @@ key_Sweeper:
 	PUSH R2
 	PUSH R3
 
-    MOV R0, KEYPAD_LIN
-    MOV R1, KEYPAD_COL
-    MOV R2, LIN_MASK
-	MOV R3, NULL
+    MOV  R0, KEYPAD_LIN
+    MOV  R1, KEYPAD_COL
+    MOV  R2, LIN_MASK
+	MOV  R3, NULL
 
 key_Sweeper_Wait:
-	ROR   R2,  1
+	ROR  R2, 1
 	MOVB [R0], R2
-	MOVB  R3, [R1]
-	MOV   R1,  000FH
-	AND   R3,  R1
-	MOV   R1,  KEYPAD_COL
-	CMP   R3,  NULL
-	JZ    key_Sweeper_Wait
+	MOVB R3, [R1]
+	MOV  R1, 000FH
+	AND  R3, R1
+	MOV  R1, KEYPAD_COL
+	CMP  R3, NULL
+	JZ   key_Sweeper_Wait
 
 key_Sweeper_Save:
-	SHL  R3,  4
-	OR   R3,  R2
-	MOV  R0,  KEY_PRESSED
-	MOV [R0], R3
+	SHL  R3, 4
+	OR   R3, R2
+	MOV  R0, KEY_PRESSING
+	MOV  [R0], R3
 
 	POP  R3
 	POP  R2
@@ -119,32 +119,35 @@ key_Convert:
 	PUSH R2
 	PUSH R3
 
-	MOV  R2,  KEY_PRESSED
-	MOVB R0, [R2]
-	SHR  R2,  0004H
-	MOVB R1, [R2]
+	MOV  R2, KEY_PRESSING
+	MOV  R3, [R2]
+	MOV  R0, 000FH
+	AND  R0, R3
+	MOV  R1, 00F0H
+	AND  R1, R3
+	SHR  R1, 4
 
-	MOV  R2,  0000H
-	MOV  R3,  0000H
+	MOV  R2, 0000H
+	MOV  R3, 0000H
 
 key_Convert_Lin:
-	SHR  R0,  1
+	SHR  R0, 1
 	JZ   key_Convert_Col
-	ADD  R2,  0001H
+	ADD  R2, 0001H
 	JMP  key_Convert_Lin
 
 key_Convert_Col:
-	SHR  R1,  1
+	SHR  R1, 1
 	JZ   key_Convert_Return
-	ADD  R3,  0001H
+	ADD  R3, 0001H
 	JMP  key_Convert_Col
 
 key_Convert_Return:
-	MOV  R1,  0004H
-	MUL  R2,  R1
-	ADD  R2,  R3
-	MOV  R1,  KEY_CONVERTED
-	MOV [R1], R2
+	MOV  R1, 0004H
+	MUL  R2, R1
+	ADD  R2, R3
+	MOV  R1, KEY_PRESSING
+	MOV  [R1], R2
 
 	POP  R3
 	POP  R2
@@ -159,36 +162,22 @@ key_CheckUpdate:
 	PUSH R0
 	PUSH R1
 	PUSH R2
-	PUSH R3
-	PUSH R4
 
-	MOV  R2,  KEY_PRESSED
-	MOVB R0, [R2]
-	MOV  R2,  KEYPAD_LIN
-	MOV  R3,  KEYPAD_COL
+	MOV  R0, KEY_PRESSED
+	MOV  R1, [R0]
+	MOV  R0, KEY_PRESSING
+	MOV  R2, [R0]
+	CMP  R1, R2
+	JZ   key_CheckUpdate_Return
+
+	MOV  R0, KEY_UPDATE
+	MOV  R1, TRUE
+	MOV  [R0], R1
 
 key_CheckUpdate_Return:
-	CALL  key_Actions
-	MOVB [R2], R0
-	MOVB  R1, [R3]
-	MOV   R3,  000FH
-	AND   R1,  R3
-	CMP   R1,  NULL
-	MOV   R3,  KEY_PRESSING
-	MOV   R4, TRUE
-	MOV  [R3], R4
-	MOV   R3,  KEYPAD_COL
-	JNZ   key_CheckUpdate_Return
-
-	MOV   R3,  KEY_PRESSING
-	MOV   R4,  FALSE
-	MOV  [R3], R4
-
-	POP   R4
-	POP   R3
-	POP   R2
-	POP   R1
-	POP   R0
+	POP  R2
+	POP  R1
+	POP  R0
 	RET
 
 ;
@@ -197,52 +186,26 @@ key_CheckUpdate_Return:
 key_Actions:
 	PUSH R0
 	PUSH R1
+	PUSH R2
 
-	MOV  R0, [KEY_PRESSING]
-	MOV  R1, [KEY_CONVERTED]
+	MOV  R0, FALSE
+	MOV  R1, KEY_UPDATE
+	MOV  R2, [R1]
+	CMP  R2, R0
+	JZ key_Actions_Return
 
-key_Actions_Repeatable:
-	CMP R1, 0000H
-	JZ  key_Action_0
-	CMP R1, 0002H
-	JZ  key_Action_2
-	CMP R1, 0001H
-	JZ  key_Action_1
+	MOV  [R1], R0
 
-	CMP R0, TRUE
-	JZ  key_Actions_Return
+	MOV  R1, KEY_PRESSING
+	MOV  R2, [R1]
 
-key_Actions_Unrepeatable:
-	CMP R1, 0004H
-	JZ  key_Action_C
-	CMP R1, 0005H
-	JZ  key_Action_D
-	CMP R1, 0006H
-	JZ  key_Action_E
-
-	JMP  key_Actions_Return
-
-key_Action_0:
-	JMP key_Actions_Return
-
-key_Action_2:
-	JMP key_Actions_Return
-
-key_Action_1:
-	JMP key_Actions_Return
-
-key_Action_C:
-	JMP key_Actions_Return
-
-key_Action_D:
-	JMP key_Actions_Return
-
-key_Action_E:
-	JMP key_Actions_Return
+	MOV  R1, KEY_PRESSED
+	MOV  [R1], R2
 
 key_Actions_Return:
-	POP R1
-	POP R0
+	POP  R2
+	POP  R1
+	POP  R0
 	RET
 
 ;=================================================================
