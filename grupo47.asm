@@ -322,7 +322,6 @@ energy_Update_MaxLim:
 
 energy_Update_MinLim:
 	MOV  R1, ENERGY_HEX_MIN
-	JMP  energy_Update_Return
 
 energy_Update_Return:
 	MOV  [R2], R1
