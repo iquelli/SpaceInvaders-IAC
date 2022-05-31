@@ -9,11 +9,11 @@
 ; NUMERIC CONSTANTS:
 ;-----------------------------------------------------------------
 
-DISPLAYS   EQU 0A000H
 KEYPAD_LIN EQU 0C000H
 KEYPAD_COL EQU 0E000H
 LIN_MASK   EQU 0010H
 
+DISPLAYS                    EQU 0A000H
 ENERGY_MOVEMENT_CONSUMPTION EQU 0FFFBH
 ENERGY_MISSILE_CONSUMPTION  EQU 0FFFBH
 ENERGY_GOOD_METEOR_INCREASE EQU 000AH
@@ -24,18 +24,22 @@ ENERGY_HEX_MIN              EQU 0000H
 HEXTODEC_MSD EQU 0064H
 HEXTODEC_LSD EQU 000AH
 
+DEF_LIN           EQU 600AH  ; endereço do comando para definir a linha
+DEF_COL           EQU 600CH  ; endereço do comando para definir a coluna
+DEF_PIXEL         EQU 6012H  ; endereço do comando para escrever um pixel
+DELETE_WARNING    EQU 6040H
+CLEAR_SCREEN      EQU 6002H
+SELECT_BACKGROUND EQU 6042H
+MIN_LIN           EQU 0
+MIN_COL           EQU 0
+MAX_LIN           EQU 31     ; line of the rover
+MAX_COL           EQU 63     ; collum of the rover
+
 TRUE      EQU 0001H
 FALSE     EQU 0000H
 NULL      EQU 0000H
 NEXT_WORD EQU 0002H
-
-DEF_LINE       EQU 600AH      ; endereço do comando para definir a linha
-DEF_COLLUM  EQU 600CH      ; endereço do comando para definir a coluna
-DEF_PIXEL   EQU 6012H      ; endereço do comando para escrever um pixel
-
-PIXEL_COLOR EQU 0FF00H		  ; color of the pixel
-LINE EQU 31                       ; line of the rover
-COLLUM EQU 32                     ; collum of the rover
+LIST_END  EQU 0FFFFH
 
 ;=================================================================
 ; VARIABLE DECLARATION:
@@ -48,6 +52,12 @@ KEY_PRESSING: WORD NULL
 KEY_UPDATE:   WORD FALSE
 
 ENERGY_HEX: WORD ENERGY_HEX_MAX
+
+VAR_LIST:
+	WORD KEY_PRESSED
+	WORD KEY_PRESSING
+	WORD KEY_UPDATE
+	WORD LIST_END
 
 KEY_LIST:
 	WORD key_Action_Placeholder
@@ -68,14 +78,28 @@ KEY_LIST:
 	WORD key_Action_Placeholder
 	WORD key_Action_Placeholder
 
-DEF_BONECO:
-	WORD LINE
-	WORD COLLUM
-	WORD PIXEL_COLOR
-
 ;=================================================================
 ; IMAGE TABLES:
 ;-----------------------------------------------------------------
+
+ROVER:
+	WORD 1C20H
+	WORD 0504H
+	WORD 0F0FFH
+	WORD 20H
+	WORD A8H
+	WORD F8H
+	WORD 50H
+
+BAD_METEOR_GIANT:
+	WORD 2C05H
+	WORD 0505H
+	WORD 0FF00H
+	WORD 88H
+	WORD A8H
+	WORD 70H
+	WORD A8H
+	WORD 88H
 
 ;=================================================================
 ; INTERRUPTION TABLE:
@@ -97,17 +121,38 @@ PLACE 0000H
 
 init:
 	MOV  SP, SP_start
+	MOV  [DELETE_WARNING], R0
 	CALL display_Reset
+	CALL game_Init
 
 main:
-	CALL draw_rover
 	CALL key_Handling
-	
+
 	JMP  main
 
 ;=================================================================
 ; GAME STATES:
 ;-----------------------------------------------------------------
+
+game_Init:
+	PUSH R0
+
+	CALL game_Reset
+	MOV  R0, 0
+	MOV  [SELECT_BACKGROUND], R0
+
+	MOV  R0, BAD_METEOR_GIANT
+	CALL image_Draw
+	MOV  R0, ROVER
+	CALL image_Draw
+
+	POP  R0
+	RET
+
+game_Reset:
+	CALL var_Reset
+	MOV  [CLEAR_SCREEN], R0
+	RET
 
 ;=================================================================
 ; KEY HANDLING:
@@ -251,77 +296,6 @@ key_Actions_Return:
 	POP  R0
 	RET
 
-key_Action_Placeholder:
-	RET
-
-;=================================================================
-; ROVER:
-;-----------------------------------------------------------------
-
-draw_rover:
-	MOV R4, DEF_BONECO      ; obtains the adress of the line of the rover
-	MOV R1, [R4]            ; obtains the line where the rover is
-	ADD R4, 2		; obtains the address of the collum
-    	MOV R2, [R4]		; obtains the collum of the rover
-    	ADD R4, 2		; obtains the address of the color of the pixel
-    	MOV R3, [R4]	        ; obtains the color of the pixel
-    	CALL updates_values
-	CALL collum135          
-	RET
-
-updates_values:
-	MOV R7, R1              ; saves the line
-    	MOV R5, R2              ; saves the collum
-	MOV R6, 3		; number of collums to draw firstly
-	MOV R8, 2               ; number of pixels to draw per collum
-	RET
-
-collum135:
-	SUB R7,1
-	MOV  [DEF_LINE], R7	; selects the line
-	MOV  [DEF_COLLUM], R5	; selects the collum
-	MOV  [DEF_PIXEL], R3	; alters the color of the pixel in the selected line and collum
-    	SUB R8, 1		; condition to see if it has already altered the color of the two pixels
-     	JNZ  collum135          ; continues until the collum is fully collored
-    	MOV R7, R1		; resets the line 
-    	MOV R8, 2               ; saves the number of pixels to draw per collum
-    	ADD R5, 2               ; goes on to the next collum
-    	SUB R6, 1               ; updates the number of collums to draw
-     	JNZ collum135		; when it's zero all of the collums 1,3 and 5 are already complete
-    	CALL updates_values     ; updates the values of R7 and R5 so they match the line and the collum
-	ADD R5,1                ; updates the collum to collum 2
-	SUB R6, 1               ; number of collums to draw is now 2 instead of 3
-	CALL collum24
-	RET
-
-collum24:
-	MOV  [DEF_LINE], R7	; selects the line
-	MOV  [DEF_COLLUM], R5	; selects the collum
-	MOV  [DEF_PIXEL], R3	; alters the color of the pixel in the selected line and collum
-    	SUB R7, 1               ; updates the value of the line 
-    	SUB R8, 1		; condition to see if it has already altered the color of the two pixels
-      	JNZ collum24            ; continues until the collum is fully collored
-    	ADD R5, 2               ; goes on to the next collum
-    	MOV R7, R1		; resets the line 
-    	MOV R8, 2               ; saves the number of pixels to draw per collum
-    	SUB R6, 1               ; updates the number of collums to draw
-     	JNZ collum24		; when it's zero all of the collums 2 and 4 are already complete
-	CALL last_pixel
-	RET
-
-last_pixel:
-    	CALL updates_values
-    	SUB R7, 3
-    	ADD R5, 2
-    	MOV  [DEF_LINE], R7	; selects the line
-	MOV  [DEF_COLLUM], R5	; selects the collum
-	MOV  [DEF_PIXEL], R3	; alters the color of the pixel in the selected line and collum
-	RET
-
-;=================================================================
-; ENERGY OF THE ROVER:
-;-----------------------------------------------------------------
-
 key_Action_4:
 	PUSH R0
 	PUSH R1
@@ -356,20 +330,135 @@ key_Action_5_Return:
 	POP  R0
 	RET
 
-display_Reset:
-	PUSH R0
-	PUSH R1
-	PUSH R2
+key_Action_Placeholder:
+	RET
 
-	MOV  R1, ENERGY_HEX_MAX
-	CALL hextodec_Convert
-	MOV  R2, DISPLAYS
-	MOV  [R2], R0
+;=================================================================
+; PIXEL SCREEN:
+;-----------------------------------------------------------------
 
+image_Draw:
+	PUSH R1 ; X coordinate
+	PUSH R2 ; Y coordinate
+	PUSH R3 ; length
+	PUSH R4 ; height
+	PUSH R5 ; color to paint
+	PUSH R6
+	PUSH R7
+	PUSH R8
+
+	MOVB R2, [R0]
+	ADD  R0, 0001H
+	MOVB R1, [R0]
+	ADD  R0, 0001H
+
+	MOVB R3, [R0]
+	ADD  R0, 0001H
+	ADD  R3, R1
+	MOVB R4, [R0]
+	ADD  R0, 0001H
+	ADD  R4, R2
+
+	MOV  R5, [R0]
+	ADD  R0, NEXT_WORD
+
+	MOV  R6, R1
+	MOV  R7, R2
+
+image_Draw_Cyclic:
+	SHL  R8, 1
+	JC   pixel_Draw
+	ADD  R6, 0001H
+	CMP  R6, R3
+	JLT  image_Draw_Cyclic
+
+	ADD  R7, 0001H
+	MOV  R6, R1
+	ADD  R0, NEXT_WORD
+	MOV  R8, [R0]
+	CMP  R7, R4
+	JLT  image_Draw_Cyclic
+
+image_Draw_Return:
+	POP  R8
+	POP  R7
+	POP  R6
+	POP  R5
+	POP  R4
+	POP  R3
 	POP  R2
 	POP  R1
-	POP  R0
+
+pixel_Draw:
+
+
+;=================================================================
+; ROVER:
+;-----------------------------------------------------------------
+
+draw_Rover:
+	MOV R4, DEF_BONECO      ; obtains the adress of the line of the rover
+	MOV R1, [R4]            ; obtains the line where the rover is
+	ADD R4, 2		; obtains the address of the collum
+	MOV R2, [R4]		; obtains the collum of the rover
+	ADD R4, 2		; obtains the address of the color of the pixel
+   	MOV R3, [R4]	        ; obtains the color of the pixel
+   	CALL updates_Values
+	CALL collum135
 	RET
+
+updates_Values:
+	MOV R7, R1              ; saves the line
+   	MOV R5, R2              ; saves the collum
+	MOV R6, 3		; number of collums to draw firstly
+	MOV R8, 2               ; number of pixels to draw per collum
+	RET
+
+collum135:
+	SUB R7, 1
+	MOV  [DEF_LIN], R7	; selects the line
+	MOV  [DEF_COL], R5	; selects the collum
+	MOV  [DEF_PIXEL], R3	; alters the color of the pixel in the selected line and collum
+   	SUB R8, 1		; condition to see if it has already altered the color of the two pixels
+   	JNZ  collum135          ; continues until the collum is fully collored
+   	MOV R7, R1		; resets the line
+   	MOV R8, 2               ; saves the number of pixels to draw per collum
+   	ADD R5, 2               ; goes on to the next collum
+   	SUB R6, 1               ; updates the number of collums to draw
+   	JNZ collum135		; when it's zero all of the collums 1,3 and 5 are already complete
+   	CALL updates_Values     ; updates the values of R7 and R5 so they match the line and the collum
+	ADD R5, 1                ; updates the collum to collum 2
+	SUB R6, 1               ; number of collums to draw is now 2 instead of 3
+	CALL collum24
+	RET
+
+collum24:
+	MOV  [DEF_LIN], R7	; selects the line
+	MOV  [DEF_COL], R5	; selects the collum
+	MOV  [DEF_PIXEL], R3	; alters the color of the pixel in the selected line and collum
+   	SUB R7, 1               ; updates the value of the line
+   	SUB R8, 1		; condition to see if it has already altered the color of the two pixels
+   	JNZ collum24            ; continues until the collum is fully collored
+   	ADD R5, 2               ; goes on to the next collum
+   	MOV R7, R1		; resets the line
+   	MOV R8, 2               ; saves the number of pixels to draw per collum
+   	SUB R6, 1               ; updates the number of collums to draw
+   	JNZ collum24		; when it's zero all of the collums 2 and 4 are already complete
+	CALL last_Pixel
+	RET
+
+last_Pixel:
+   	CALL updates_Values
+   	SUB R7, 3
+   	ADD R5, 2
+   	MOV  [DEF_LIN], R7	; selects the line
+	MOV  [DEF_COL], R5	; selects the collum
+	MOV  [DEF_PIXEL], R3	; alters the color of the pixel in the selected line and collum
+	RET
+
+;=================================================================
+; ENERGY OF THE ROVER:
+;-----------------------------------------------------------------
 
 energy_Update:
 	PUSH R1
@@ -409,6 +498,37 @@ energy_Update_Return:
 	POP  R1
 	RET
 
+;=================================================================
+; MISSILE:
+;-----------------------------------------------------------------
+
+;=================================================================
+; METEOR:
+;-----------------------------------------------------------------
+
+;=================================================================
+; MISCELLANIOUS:
+;-----------------------------------------------------------------
+
+display_Reset:
+	PUSH R0
+	PUSH R1
+	PUSH R2
+
+	MOV  R2, ENERGY_HEX
+	MOV  R1, ENERGY_HEX_MAX
+	MOV  [R2], R1
+
+	MOV  R1, [R2]
+	CALL hextodec_Convert
+	MOV  R2, DISPLAYS
+	MOV  [R2], R0
+
+	POP  R2
+	POP  R1
+	POP  R0
+	RET
+
 hextodec_Convert:
 	PUSH R2
 	PUSH R3
@@ -435,13 +555,27 @@ hextodec_Convert:
 	POP  R2
 	RET
 
-;=================================================================
-; MISSILE:
-;-----------------------------------------------------------------
+var_Reset:
+	PUSH R0
+	PUSH R1
+	PUSH R2
 
-;=================================================================
-; METEOR:
-;-----------------------------------------------------------------
+	MOV  R1, VAR_LIST
+
+var_Reset_Cyclic:
+	MOV  R2, 0
+	MOV  R0, [R1]
+	MOV  [R0], R2
+
+	ADD  R1, NEXT_WORD
+	MOV  R0, [R1]
+	MOV  R2, LIST_END
+	CMP  R0, R2
+	JNZ  var_Reset_Cyclic
+
+	POP  R2
+	POP  R1
+	POP  R0
 
 ;=================================================================
 ; INTERRUPTION HANDLING:
