@@ -29,6 +29,14 @@ FALSE     EQU 0000H
 NULL      EQU 0000H
 NEXT_WORD EQU 0002H
 
+DEF_LINE       EQU 600AH      ; endereço do comando para definir a linha
+DEF_COLLUM  EQU 600CH      ; endereço do comando para definir a coluna
+DEF_PIXEL   EQU 6012H      ; endereço do comando para escrever um pixel
+
+PIXEL_COLOR EQU 0FF00H		  ; color of the pixel
+LINE EQU 31                       ; line of the rover
+COLLUM EQU 32                     ; collum of the rover
+
 ;=================================================================
 ; VARIABLE DECLARATION:
 ;-----------------------------------------------------------------
@@ -60,6 +68,11 @@ KEY_LIST:
 	WORD key_Action_Placeholder
 	WORD key_Action_Placeholder
 
+DEF_BONECO:
+	WORD LINE
+	WORD COLLUM
+	WORD PIXEL_COLOR
+
 ;=================================================================
 ; IMAGE TABLES:
 ;-----------------------------------------------------------------
@@ -87,8 +100,9 @@ init:
 	CALL display_Reset
 
 main:
+	CALL draw_rover
 	CALL key_Handling
-
+	
 	JMP  main
 
 ;=================================================================
@@ -243,6 +257,66 @@ key_Action_Placeholder:
 ;=================================================================
 ; ROVER:
 ;-----------------------------------------------------------------
+
+draw_rover:
+	MOV R4, DEF_BONECO      ; obtains the adress of the line of the rover
+	MOV R1, [R4]            ; obtains the line where the rover is
+	ADD R4, 2		; obtains the address of the collum
+    	MOV R2, [R4]		; obtains the collum of the rover
+    	ADD R4, 2		; obtains the address of the color of the pixel
+    	MOV R3, [R4]	        ; obtains the color of the pixel
+    	CALL updates_values
+	CALL collum135          
+	RET
+
+updates_values:
+	MOV R7, R1              ; saves the line
+    	MOV R5, R2              ; saves the collum
+	MOV R6, 3		; number of collums to draw firstly
+	MOV R8, 2               ; number of pixels to draw per collum
+	RET
+
+collum135:
+	SUB R7,1
+	MOV  [DEF_LINE], R7	; selects the line
+	MOV  [DEF_COLLUM], R5	; selects the collum
+	MOV  [DEF_PIXEL], R3	; alters the color of the pixel in the selected line and collum
+    	SUB R8, 1		; condition to see if it has already altered the color of the two pixels
+     	JNZ  collum135          ; continues until the collum is fully collored
+    	MOV R7, R1		; resets the line 
+    	MOV R8, 2               ; saves the number of pixels to draw per collum
+    	ADD R5, 2               ; goes on to the next collum
+    	SUB R6, 1               ; updates the number of collums to draw
+     	JNZ collum135		; when it's zero all of the collums 1,3 and 5 are already complete
+    	CALL updates_values     ; updates the values of R7 and R5 so they match the line and the collum
+	ADD R5,1                ; updates the collum to collum 2
+	SUB R6, 1               ; number of collums to draw is now 2 instead of 3
+	CALL collum24
+	RET
+
+collum24:
+	MOV  [DEF_LINE], R7	; selects the line
+	MOV  [DEF_COLLUM], R5	; selects the collum
+	MOV  [DEF_PIXEL], R3	; alters the color of the pixel in the selected line and collum
+    	SUB R7, 1               ; updates the value of the line 
+    	SUB R8, 1		; condition to see if it has already altered the color of the two pixels
+      	JNZ collum24            ; continues until the collum is fully collored
+    	ADD R5, 2               ; goes on to the next collum
+    	MOV R7, R1		; resets the line 
+    	MOV R8, 2               ; saves the number of pixels to draw per collum
+    	SUB R6, 1               ; updates the number of collums to draw
+     	JNZ collum24		; when it's zero all of the collums 2 and 4 are already complete
+	CALL last_pixel
+	RET
+
+last_pixel:
+    	CALL updates_values
+    	SUB R7, 3
+    	ADD R5, 2
+    	MOV  [DEF_LINE], R7	; selects the line
+	MOV  [DEF_COLLUM], R5	; selects the collum
+	MOV  [DEF_PIXEL], R3	; alters the color of the pixel in the selected line and collum
+	RET
 
 ;=================================================================
 ; ENERGY OF THE ROVER:
