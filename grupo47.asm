@@ -26,20 +26,27 @@ HEXTODEC_LSD EQU 000AH
 
 DEF_LIN           EQU 600AH  ; endereço do comando para definir a linha
 DEF_COL           EQU 600CH  ; endereço do comando para definir a coluna
-DEF_PIXEL         EQU 6012H  ; endereço do comando para escrever um pixel
-DELETE_WARNING    EQU 6040H
+DEF_PIXEL_WRITE   EQU 6012H  ; endereço do comando para escrever um pixel
+DEF_PIXEL_READ    EQU 6014H
 CLEAR_SCREEN      EQU 6002H
 SELECT_BACKGROUND EQU 6042H
-MIN_LIN           EQU 0
-MIN_COL           EQU 0
-MAX_LIN           EQU 31     ; line of the rover
-MAX_COL           EQU 63     ; collum of the rover
 
-TRUE      EQU 0001H
-FALSE     EQU 0000H
-NULL      EQU 0000H
-NEXT_WORD EQU 0002H
-LIST_END  EQU 0FFFFH
+MAX_LIN                 EQU 001FH
+MAX_LIN_METEOR          EQU 001BH
+MIN_COL_ROVER           EQU 0000H
+MAX_COL_ROVER           EQU 003BH
+ROVER_START_POSITION    EQU 201CH
+ROVER_DIMENSIONS        EQU 0504H
+ROVER_COLOR             EQU 0F0FFH
+METEOR_START_POSITION   EQU 2C05H
+METEOR_GIANT_DIMENSIONS EQU 0505H
+BAD_METEOR_GIANT_COLOR  EQU 0FF00H
+
+TRUE         EQU 0001H
+FALSE        EQU 0000H
+NULL         EQU 0000H
+NEXT_WORD    EQU 0002H
+VAR_LIST_END EQU 100EH
 
 ;=================================================================
 ; VARIABLE DECLARATION:
@@ -49,21 +56,21 @@ PLACE 1000H
 
 KEY_PRESSED:  WORD NULL
 KEY_PRESSING: WORD NULL
-KEY_UPDATE:   WORD FALSE
+KEY_CHANGE:   WORD FALSE
 
 ENERGY_HEX: WORD ENERGY_HEX_MAX
 
 VAR_LIST:
 	WORD KEY_PRESSED
 	WORD KEY_PRESSING
-	WORD KEY_UPDATE
-	WORD LIST_END
+	WORD KEY_CHANGE
+	WORD VAR_LIST_END
 
 KEY_LIST:
+	WORD key_Action_0
 	WORD key_Action_Placeholder
-	WORD key_Action_Placeholder
-	WORD key_Action_Placeholder
-	WORD key_Action_Placeholder
+	WORD key_Action_2
+	WORD key_Action_3
 	WORD key_Action_4
 	WORD key_Action_5
 	WORD key_Action_Placeholder
@@ -83,23 +90,23 @@ KEY_LIST:
 ;-----------------------------------------------------------------
 
 ROVER:
-	WORD 1C20H
-	WORD 0504H
-	WORD 0F0FFH
-	WORD 20H
-	WORD A8H
-	WORD F8H
-	WORD 50H
+	WORD ROVER_START_POSITION
+	WORD ROVER_DIMENSIONS
+	WORD ROVER_COLOR
+	WORD 2000H
+	WORD 0A800H
+	WORD 0F800H
+	WORD 5000H
 
 BAD_METEOR_GIANT:
-	WORD 2C05H
-	WORD 0505H
-	WORD 0FF00H
-	WORD 88H
-	WORD A8H
-	WORD 70H
-	WORD A8H
-	WORD 88H
+	WORD METEOR_START_POSITION
+	WORD METEOR_GIANT_DIMENSIONS
+	WORD BAD_METEOR_GIANT_COLOR
+	WORD 8800H
+	WORD 0A800H
+	WORD 7000H
+	WORD 0A800H
+	WORD 8800H
 
 ;=================================================================
 ; INTERRUPTION TABLE:
@@ -109,9 +116,9 @@ BAD_METEOR_GIANT:
 ; STACK POINTER INITIALIZATION:
 ;-----------------------------------------------------------------
 
-pile_init:
+pile_Init:
 	TABLE 100H
-SP_start:
+SP_Start:
 
 ;=================================================================
 ; MAIN: the starting point of the program.
@@ -120,8 +127,7 @@ SP_start:
 PLACE 0000H
 
 init:
-	MOV  SP, SP_start
-	MOV  [DELETE_WARNING], R0
+	MOV  SP, SP_Start
 	CALL display_Reset
 	CALL game_Init
 
@@ -143,6 +149,7 @@ game_Init:
 
 	MOV  R0, BAD_METEOR_GIANT
 	CALL image_Draw
+	CALL image_Draw
 	MOV  R0, ROVER
 	CALL image_Draw
 
@@ -151,6 +158,8 @@ game_Init:
 
 game_Reset:
 	CALL var_Reset
+	CALL meteor_Reset
+	CALL rover_Reset
 	MOV  [CLEAR_SCREEN], R0
 	RET
 
@@ -178,7 +187,7 @@ key_Sweeper:
 
 key_Sweeper_Wait:
 	SHR  R2, 1
-	JZ   key_Sweeper_Return
+	JZ   key_Sweeper_Save
 
 	MOVB [R0], R2
 	MOVB R3, [R1]
@@ -188,7 +197,7 @@ key_Sweeper_Wait:
 	CMP  R3, NULL
 	JZ   key_Sweeper_Wait
 
-key_Sweeper_Return:
+key_Sweeper_Save:
 	SHL  R3, 8
 	OR   R3, R2
 	MOV  R0, KEY_PRESSING
@@ -226,11 +235,11 @@ key_Convert_Lin:
 
 key_Convert_Col:
 	SHR  R1, 1
-	JZ   key_Convert_Return
+	JZ   key_Convert_Save
 	ADD  R3, 0001H
 	JMP  key_Convert_Col
 
-key_Convert_Return:
+key_Convert_Save:
 	MOV  R1, 0004H
 	MUL  R2, R1
 	ADD  R2, R3
@@ -255,7 +264,7 @@ key_CheckUpdate:
 	CMP  R1, R2
 	JZ   key_CheckUpdate_Return
 
-	MOV  R0, KEY_UPDATE
+	MOV  R0, KEY_CHANGE
 	MOV  R1, TRUE
 	MOV  [R0], R1
 
@@ -277,7 +286,7 @@ key_Actions:
 	MOV  R2, [R0 + R1]
 	CALL R2
 
-	MOV  R1, KEY_UPDATE
+	MOV  R1, KEY_CHANGE
 	MOV  R2, [R1]
 	CMP  R2, FALSE
 	JZ   key_Actions_Return
@@ -296,11 +305,23 @@ key_Actions_Return:
 	POP  R0
 	RET
 
+key_Action_0:
+	RET
+
+key_Action_2:
+	RET
+
+key_Action_Placeholder:
+	RET
+
+key_Action_3:
+	RET
+
 key_Action_4:
 	PUSH R0
 	PUSH R1
 
-	MOV  R0, KEY_UPDATE
+	MOV  R0, KEY_CHANGE
 	MOV  R1, [R0]
 	CMP  R1, FALSE
 	JZ   key_Action_4_Return
@@ -317,7 +338,7 @@ key_Action_5:
 	PUSH R0
 	PUSH R1
 
-	MOV  R0, KEY_UPDATE
+	MOV  R0, KEY_CHANGE
 	MOV  R1, [R0]
 	CMP  R1, FALSE
 	JZ   key_Action_5_Return
@@ -328,9 +349,6 @@ key_Action_5:
 key_Action_5_Return:
 	POP  R1
 	POP  R0
-	RET
-
-key_Action_Placeholder:
 	RET
 
 ;=================================================================
@@ -347,37 +365,38 @@ image_Draw:
 	PUSH R7
 	PUSH R8
 
-	MOVB R2, [R0]
-	ADD  R0, 0001H
 	MOVB R1, [R0]
+	ADD  R0, 0001H
+	MOVB R2, [R0]
 	ADD  R0, 0001H
 
 	MOVB R3, [R0]
-	ADD  R0, 0001H
 	ADD  R3, R1
-	MOVB R4, [R0]
 	ADD  R0, 0001H
+	MOVB R4, [R0]
 	ADD  R4, R2
+	ADD  R0, 0001H
 
 	MOV  R5, [R0]
 	ADD  R0, NEXT_WORD
 
 	MOV  R6, R1
 	MOV  R7, R2
+	MOV  R8, [R0]
 
-image_Draw_Cyclic:
+image_Draw_Loop:
 	SHL  R8, 1
-	JC   pixel_Draw
+	CALL pixel_Draw
 	ADD  R6, 0001H
 	CMP  R6, R3
-	JLT  image_Draw_Cyclic
+	JLT  image_Draw_Loop
 
 	ADD  R7, 0001H
-	MOV  R6, R1
 	ADD  R0, NEXT_WORD
 	MOV  R8, [R0]
+	MOV  R6, R1
 	CMP  R7, R4
-	JLT  image_Draw_Cyclic
+	JLT  image_Draw_Loop
 
 image_Draw_Return:
 	POP  R8
@@ -388,72 +407,52 @@ image_Draw_Return:
 	POP  R3
 	POP  R2
 	POP  R1
+	RET
 
 pixel_Draw:
+	PUSH R0
+	PUSH R1
 
+	JNC  pixel_Draw_Return
+
+	MOV  R0, DEF_COL
+	MOV  [R0], R6
+	MOV  R0, DEF_LIN
+	MOV  [R0], R7
+	MOV  R0, DEF_PIXEL_READ
+
+	MOV  R1, [R0]
+	CMP  R1, NULL
+	MOV  R0, DEF_PIXEL_WRITE
+	JNZ  pixel_Erase
+
+pixel_Paint:
+	MOV  [R0], R5
+	JMP  pixel_Draw_Return
+
+pixel_Erase:
+	MOV  R1, NULL
+	MOV  [R0], R1
+
+pixel_Draw_Return:
+	POP  R1
+	POP  R0
+	RET
 
 ;=================================================================
 ; ROVER:
 ;-----------------------------------------------------------------
 
-draw_Rover:
-	MOV R4, DEF_BONECO      ; obtains the adress of the line of the rover
-	MOV R1, [R4]            ; obtains the line where the rover is
-	ADD R4, 2		; obtains the address of the collum
-	MOV R2, [R4]		; obtains the collum of the rover
-	ADD R4, 2		; obtains the address of the color of the pixel
-   	MOV R3, [R4]	        ; obtains the color of the pixel
-   	CALL updates_Values
-	CALL collum135
-	RET
+rover_Reset:
+	PUSH R0
+	PUSH R1
 
-updates_Values:
-	MOV R7, R1              ; saves the line
-   	MOV R5, R2              ; saves the collum
-	MOV R6, 3		; number of collums to draw firstly
-	MOV R8, 2               ; number of pixels to draw per collum
-	RET
+	MOV  R1, ROVER_START_POSITION
+	MOV  R0, ROVER
+	MOV  [R0], R1
 
-collum135:
-	SUB R7, 1
-	MOV  [DEF_LIN], R7	; selects the line
-	MOV  [DEF_COL], R5	; selects the collum
-	MOV  [DEF_PIXEL], R3	; alters the color of the pixel in the selected line and collum
-   	SUB R8, 1		; condition to see if it has already altered the color of the two pixels
-   	JNZ  collum135          ; continues until the collum is fully collored
-   	MOV R7, R1		; resets the line
-   	MOV R8, 2               ; saves the number of pixels to draw per collum
-   	ADD R5, 2               ; goes on to the next collum
-   	SUB R6, 1               ; updates the number of collums to draw
-   	JNZ collum135		; when it's zero all of the collums 1,3 and 5 are already complete
-   	CALL updates_Values     ; updates the values of R7 and R5 so they match the line and the collum
-	ADD R5, 1                ; updates the collum to collum 2
-	SUB R6, 1               ; number of collums to draw is now 2 instead of 3
-	CALL collum24
-	RET
-
-collum24:
-	MOV  [DEF_LIN], R7	; selects the line
-	MOV  [DEF_COL], R5	; selects the collum
-	MOV  [DEF_PIXEL], R3	; alters the color of the pixel in the selected line and collum
-   	SUB R7, 1               ; updates the value of the line
-   	SUB R8, 1		; condition to see if it has already altered the color of the two pixels
-   	JNZ collum24            ; continues until the collum is fully collored
-   	ADD R5, 2               ; goes on to the next collum
-   	MOV R7, R1		; resets the line
-   	MOV R8, 2               ; saves the number of pixels to draw per collum
-   	SUB R6, 1               ; updates the number of collums to draw
-   	JNZ collum24		; when it's zero all of the collums 2 and 4 are already complete
-	CALL last_Pixel
-	RET
-
-last_Pixel:
-   	CALL updates_Values
-   	SUB R7, 3
-   	ADD R5, 2
-   	MOV  [DEF_LIN], R7	; selects the line
-	MOV  [DEF_COL], R5	; selects the collum
-	MOV  [DEF_PIXEL], R3	; alters the color of the pixel in the selected line and collum
+	POP  R1
+	POP  R0
 	RET
 
 ;=================================================================
@@ -477,16 +476,16 @@ energy_Update:
 	CMP  R1, R3
 	JLE  energy_Update_MinLim
 
-	JMP  energy_Update_Return
+	JMP  energy_Update_Display
 
 energy_Update_MaxLim:
 	MOV  R1, ENERGY_HEX_MAX
-	JMP  energy_Update_Return
+	JMP  energy_Update_Display
 
 energy_Update_MinLim:
 	MOV  R1, ENERGY_HEX_MIN
 
-energy_Update_Return:
+energy_Update_Display:
 	MOV  [R2], R1
 
 	CALL hextodec_Convert
@@ -506,6 +505,21 @@ energy_Update_Return:
 ; METEOR:
 ;-----------------------------------------------------------------
 
+meteor_Reset:
+	PUSH R0
+	PUSH R1
+
+	MOV  R1, METEOR_START_POSITION
+	MOV  R0, BAD_METEOR_GIANT
+	MOV  [R0], R1
+	MOV  R1, METEOR_GIANT_DIMENSIONS
+	ADD  R0, NEXT_WORD
+	MOV  [R0], R1
+
+	POP  R1
+	POP  R0
+	RET
+
 ;=================================================================
 ; MISCELLANIOUS:
 ;-----------------------------------------------------------------
@@ -519,7 +533,6 @@ display_Reset:
 	MOV  R1, ENERGY_HEX_MAX
 	MOV  [R2], R1
 
-	MOV  R1, [R2]
 	CALL hextodec_Convert
 	MOV  R2, DISPLAYS
 	MOV  [R2], R0
@@ -562,20 +575,21 @@ var_Reset:
 
 	MOV  R1, VAR_LIST
 
-var_Reset_Cyclic:
+var_Reset_Loop:
 	MOV  R2, 0
 	MOV  R0, [R1]
 	MOV  [R0], R2
 
 	ADD  R1, NEXT_WORD
 	MOV  R0, [R1]
-	MOV  R2, LIST_END
+	MOV  R2, VAR_LIST_END
 	CMP  R0, R2
-	JNZ  var_Reset_Cyclic
+	JNZ  var_Reset_Loop
 
 	POP  R2
 	POP  R1
 	POP  R0
+	RET
 
 ;=================================================================
 ; INTERRUPTION HANDLING:
