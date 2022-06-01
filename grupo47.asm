@@ -35,6 +35,7 @@ MAX_LIN                 EQU 001FH
 MAX_LIN_METEOR          EQU 001BH
 MIN_COL_ROVER           EQU 0000H
 MAX_COL_ROVER           EQU 003BH
+DELAY                   EQU 0FFFFH
 ROVER_START_POSITION    EQU 201CH
 ROVER_DIMENSIONS        EQU 0504H
 ROVER_COLOR             EQU 0F0FFH
@@ -148,7 +149,6 @@ game_Init:
 	MOV  [SELECT_BACKGROUND], R0
 
 	MOV  R0, BAD_METEOR_GIANT
-	CALL image_Draw
 	CALL image_Draw
 	MOV  R0, ROVER
 	CALL image_Draw
@@ -306,15 +306,40 @@ key_Actions_Return:
 	RET
 
 key_Action_0:
+	PUSH R1
+
+	MOV  R1, -1
+	CALL rover_Move
+
+	POP  R1
 	RET
 
 key_Action_2:
+	PUSH R1
+
+	MOV  R1, 1
+	CALL rover_Move
+
+	POP  R1
 	RET
 
 key_Action_Placeholder:
 	RET
 
 key_Action_3:
+	PUSH R0
+	PUSH R1
+
+	MOV  R0, KEY_CHANGE
+	MOV  R1, [R0]
+	CMP  R1, FALSE
+	JZ   key_Action_3_Return
+
+	CALL meteor_Move
+
+key_Action_3_Return:
+	POP  R1
+	POP  R0
 	RET
 
 key_Action_4:
@@ -443,6 +468,37 @@ pixel_Draw_Return:
 ; ROVER:
 ;-----------------------------------------------------------------
 
+rover_Move:
+	PUSH R1
+	PUSH R2
+	PUSH R3
+
+	MOV  R0, ROVER
+	MOVB R2, [R0]
+	ADD  R2, R1
+
+	JN   rover_Draw_Return
+	MOV  R3, MAX_COL_ROVER
+	CMP  R2, R3
+	JGT  rover_Draw_Return
+
+	SHL  R2, 8
+	CALL image_Draw
+	MOV  R0, ROVER
+	MOV  R1, [R0]
+	MOV  R3, 00FFH
+	AND  R1, R3
+	OR   R1, R2
+	MOV  [R0], R1
+
+	CALL image_Draw
+
+rover_Draw_Return:
+	POP  R3
+	POP  R2
+	POP  R1
+	RET
+
 rover_Reset:
 	PUSH R0
 	PUSH R1
@@ -504,6 +560,37 @@ energy_Update_Display:
 ;=================================================================
 ; METEOR:
 ;-----------------------------------------------------------------
+
+meteor_Move:
+	PUSH R1
+	PUSH R2
+	PUSH R3
+
+	MOV  R0, BAD_METEOR_GIANT
+	ADD  R0, 1
+	MOVB R2, [R0]
+	ADD  R2, 1
+
+	MOV  R3, MAX_LIN_METEOR
+	CMP  R2, R3
+	JGT  meteor_Draw_Return
+
+	CALL image_Draw
+	MOV  R0, BAD_METEOR_GIANT
+	MOV  R1, [R0]
+	MOV  R3, 0FF00H
+	AND  R1, R3
+	OR   R1, R2
+	SUB  R0, 1
+	MOV  [R0], R1
+
+	CALL image_Draw
+
+meteor_Draw_Return:
+	POP  R3
+	POP  R2
+	POP  R1
+	RET
 
 meteor_Reset:
 	PUSH R0
@@ -588,6 +675,17 @@ var_Reset_Loop:
 
 	POP  R2
 	POP  R1
+	POP  R0
+	RET
+
+delay_Drawing:
+	PUSH R0
+	MOV  R0, DELAY
+
+delay_Drawing_Cycle:
+	SUB  R0, 1
+	JNZ  delay_Drawing_Cycle
+
 	POP  R0
 	RET
 
