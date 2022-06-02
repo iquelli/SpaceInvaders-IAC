@@ -70,12 +70,12 @@ VAR_LIST:
 	WORD VAR_LIST_END
 
 KEY_LIST:
-	WORD key_Action_0
+	WORD key_Action_0     ; action of the key 0
 	WORD key_Action_Placeholder
-	WORD key_Action_2
-	WORD key_Action_3
-	WORD key_Action_4
-	WORD key_Action_5
+	WORD key_Action_2     ; action of the key 2
+	WORD key_Action_3     ; action of the key 3
+	WORD key_Action_4     ; action of the key 4
+	WORD key_Action_5     ; action of the key 5
 	WORD key_Action_Placeholder
 	WORD key_Action_Placeholder
 	WORD key_Action_Placeholder
@@ -144,31 +144,33 @@ main:
 ;-----------------------------------------------------------------
 
 game_Init:
-	PUSH R0
-	PUSH R1
+	PUSH R0            ; number of the selected backround 
+	PUSH R1            ; address of the command to select a backround
+	PUSH R2            ; address of the objects to draw
 
 	CALL game_Reset
-	MOV  R0, 0
-	MOV  R1, SELECT_BACKGROUND
-	MOV  [R1], R0
+	MOV  R0, 0         ; selects number of the backround
+	MOV  R1, SELECT_BACKGROUND ; obtains the address of the command
+	MOV  [R1], R0      ; selects the backround
 
-	MOV  R0, BAD_METEOR_GIANT
-	CALL image_Draw
-	MOV  R0, ROVER
-	CALL image_Draw
+	MOV  R2, BAD_METEOR_GIANT ; obtains the address of the meteor
+	CALL image_Draw    ; draws the meteor
+	MOV  R0, ROVER     ; obtains the address of the rover
+	CALL image_Draw    ; draws the rover
 
+	POP  R2
 	POP  R1
 	POP  R0
 	RET
 
 game_Reset:
-	PUSH R1
+	PUSH R1            ; address of the command to clear the screen
 
 	CALL var_Reset
-	CALL meteor_Reset
-	CALL rover_Reset
-	MOV  R1, CLEAR_SCREEN
-	MOV  [R1], R0
+	CALL meteor_Reset  ; resets the values of the meteor
+	CALL rover_Reset   ; resets the values of the rover
+	MOV  R1, CLEAR_SCREEN ; obtains the address of the command
+	MOV  [R1], R0      ; clears the screen
 
 	POP  R1
 	RET
@@ -315,19 +317,23 @@ key_Actions_Return:
 	POP  R0
 	RET
 
-key_Action_0:
-	PUSH R1
+;=================================================================
+; KEY ACTIONS:
+;-----------------------------------------------------------------
 
-	MOV  R1, -1
+key_Action_0:
+	PUSH R1            ; value to add to the column of the rover
+
+	MOV  R1, -1        ; obtains the value to add to the column of the rover
 	CALL rover_Move
 
 	POP  R1
 	RET
 
 key_Action_2:
-	PUSH R1
+	PUSH R1            ; value to add to the column of the rover
 
-	MOV  R1, 1
+	MOV  R1, 1         ; obtains the value to add to the column of the rover
 	CALL rover_Move
 
 	POP  R1
@@ -337,13 +343,13 @@ key_Action_Placeholder:
 	RET
 
 key_Action_3:
-	PUSH R0
-	PUSH R1
+	PUSH R0            ; address of the value of key change
+	PUSH R1            ; value of key change
 
-	MOV  R0, KEY_CHANGE
-	MOV  R1, [R0]
-	CMP  R1, FALSE
-	JZ   key_Action_3_Return
+	MOV  R0, KEY_CHANGE ; obtains the address of the value of key change
+	MOV  R1, [R0]       ; updates the value of key change 
+	CMP  R1, FALSE      ; checks if key is still being pressed
+	JZ   key_Action_3_Return ; keeps going until the key is not being pressed
 
 	CALL meteor_Move
 
@@ -353,13 +359,13 @@ key_Action_3_Return:
 	RET
 
 key_Action_4:
-	PUSH R0
-	PUSH R1
+	PUSH R0            ; address of the value of key change
+	PUSH R1            ; value of key change
 
-	MOV  R0, KEY_CHANGE
-	MOV  R1, [R0]
-	CMP  R1, FALSE
-	JZ   key_Action_4_Return
+	MOV  R0, KEY_CHANGE ; obtains the address of the value of key change
+	MOV  R1, [R0]       ; updates the value of key change
+	CMP  R1, FALSE      ; checks if key is still being pressed
+	JZ   key_Action_4_Return ; keeps going until the key is not being pressed
 
 	MOV  R0, ENERGY_MOVEMENT_CONSUMPTION
 	CALL energy_Update
@@ -373,10 +379,10 @@ key_Action_5:
 	PUSH R0
 	PUSH R1
 
-	MOV  R0, KEY_CHANGE
-	MOV  R1, [R0]
-	CMP  R1, FALSE
-	JZ   key_Action_5_Return
+	MOV  R0, KEY_CHANGE ; obtains the address of the value of key change
+	MOV  R1, [R0]       ; updates the value of key change
+	CMP  R1, FALSE      ; checks if key is still being pressed
+	JZ   key_Action_5_Return ; keeps going until the key is not being pressed
 
 	MOV  R0, ENERGY_GOOD_METEOR_INCREASE
 	CALL energy_Update
@@ -604,7 +610,7 @@ meteor_Move:
 
 	CALL image_Draw
 	MOV  R4, SOUND_PLAY  ; obtains the address to the command that makes sound play 
-	MOV  [R4], 0         ; makes sound play
+	MOV  [R4], 0         ; makes the sound 0 play
 
 meteor_Move_Return:
 	POP  R4
