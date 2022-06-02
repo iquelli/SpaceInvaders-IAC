@@ -24,31 +24,30 @@ ENERGY_HEX_MIN              EQU 0000H
 HEXTODEC_MSD EQU 0064H
 HEXTODEC_LSD EQU 000AH
 
-DEF_LIN           EQU 600AH  ; endereço do comando para definir a linha
-DEF_COL           EQU 600CH  ; endereço do comando para definir a coluna
-DEF_PIXEL_WRITE   EQU 6012H  ; endereço do comando para escrever um pixel
-DEF_PIXEL_READ    EQU 6014H
-CLEAR_SCREEN      EQU 6002H
-SELECT_BACKGROUND EQU 6042H
+DEF_LIN           EQU 600AH  ; address of the command to define a line
+DEF_COL           EQU 600CH  ; address of the command to define a collum
+DEF_PIXEL_WRITE   EQU 6012H  ; address of the command to write a pixel
+DEF_PIXEL_READ    EQU 6014H  ; address of the command to read a pixel's state
+CLEAR_SCREEN      EQU 6002H  ; address of the command to clear the screen
+SELECT_BACKGROUND EQU 6042H  ; address of the command to select a backround
+SOUND_CHANGE      EQU 6048H  ; address of the command to change the sound
 
-MAX_LIN                 EQU 001FH
-MAX_LIN_METEOR          EQU 001BH
-MIN_COL_ROVER           EQU 0000H
-MAX_COL_ROVER           EQU 003BH
-DELAY                   EQU 0FFFFH
-ROVER_START_POSITION    EQU 201CH
-ROVER_DIMENSIONS        EQU 0504H
-ROVER_COLOR             EQU 0F0FFH
-METEOR_START_POSITION   EQU 2C05H
-METEOR_GIANT_DIMENSIONS EQU 0505H
-BAD_METEOR_GIANT_COLOR  EQU 0FF00H
+MAX_LIN                 EQU 001FH ;
+MAX_LIN_METEOR          EQU 001BH ;
+MIN_COL_ROVER           EQU 0000H ; minimum collum where the rover can be at
+MAX_COL_ROVER           EQU 003BH ; maximum collum the rover can be at
+DELAY                   EQU 4000H ; delay to limit the speed of the rover
+ROVER_START_POSITION    EQU 201CH ; the start position of the rover
+ROVER_DIMENSIONS        EQU 0504H ; length and height of the rover
+ROVER_COLOR             EQU 0F0FFH ; color of the rover
+METEOR_START_POSITION   EQU 2C05H ; the start position of the meteor
+METEOR_GIANT_DIMENSIONS EQU 0505H ; length and height of the bad giant meteor
+BAD_METEOR_GIANT_COLOR  EQU 0FF00H ; color of the bad giant meteor
 
-SOUND_CHANGE EQU 6048H
-
-TRUE         EQU 0001H
-FALSE        EQU 0000H
-NULL         EQU 0000H
-NEXT_WORD    EQU 0002H
+TRUE         EQU 0001H      ; value equal to one
+FALSE        EQU 0000H      ; value equal to zero
+NULL         EQU 0000H      ; value equal to zero
+NEXT_WORD    EQU 0002H      ; value that a word occupies at an address
 VAR_LIST_END EQU 100EH
 
 ;=================================================================
@@ -93,23 +92,23 @@ KEY_LIST:
 ;-----------------------------------------------------------------
 
 ROVER:
-	WORD ROVER_START_POSITION
-	WORD ROVER_DIMENSIONS
-	WORD ROVER_COLOR
-	WORD 2000H
-	WORD 0A800H
-	WORD 0F800H
-	WORD 5000H
+	WORD ROVER_START_POSITION ; rover's starting position
+	WORD ROVER_DIMENSIONS     ; rover's height and length
+	WORD ROVER_COLOR          ; rover's coler
+	WORD 2000H                ; rover's color scheme of the first line (counting from the top)
+	WORD 0A800H               ; rover's color scheme of the second line
+	WORD 0F800H               ; rover's color scheme of the third line
+	WORD 5000H                ; rover's color scheme of the fourth line
 
 BAD_METEOR_GIANT:
-	WORD METEOR_START_POSITION
-	WORD METEOR_GIANT_DIMENSIONS
-	WORD BAD_METEOR_GIANT_COLOR
-	WORD 8800H
-	WORD 0A800H
-	WORD 7000H
-	WORD 0A800H
-	WORD 8800H
+	WORD METEOR_START_POSITION ; meteor's starting position
+	WORD METEOR_GIANT_DIMENSIONS ; meteor's height and length
+	WORD BAD_METEOR_GIANT_COLOR ; meteor's color
+	WORD 8800H                ; meteor's color scheme of the first line (counting from the top) 
+	WORD 0A800H               ; meteor's color scheme of the second line
+	WORD 7000H                ; meteor's color scheme of the third line
+	WORD 0A800H               ; meteor's color scheme of the fourth line
+	WORD 8800H                ; meteor's color scheme of the fifth line
 
 ;=================================================================
 ; INTERRUPTION TABLE:
@@ -383,47 +382,48 @@ key_Action_5_Return:
 ;-----------------------------------------------------------------
 
 image_Draw:
-	PUSH R1 ; X coordinate
-	PUSH R2 ; Y coordinate
-	PUSH R3 ; length
-	PUSH R4 ; height
-	PUSH R5 ; color to paint
-	PUSH R6
-	PUSH R7
-	PUSH R8
+	PUSH R1            ; collum where the object currently is
+	PUSH R2            ; line where the object currently is
+	PUSH R3            ; length of the object plus collum
+	PUSH R4            ; height of the object plus line
+	PUSH R5            ; color of the object
+	PUSH R6            ; line of the pixel
+	PUSH R7            ; collum of the pixel
+	PUSH R8            ; color pattern of the object
 
-	MOVB R1, [R0]
-	ADD  R0, 0001H
-	MOVB R2, [R0]
-	ADD  R0, 0001H
+	MOVB R1, [R0]      ; obtains the collum of the object
+	ADD  R0, 0001H     ; obtains the address of the line of the object
+	MOVB R2, [R0]      ; obtains the line of the object
+	ADD  R0, 0001H     ; obtains the address of the length of the object
 
-	MOVB R3, [R0]
-	ADD  R3, R1
-	ADD  R0, 0001H
-	MOVB R4, [R0]
-	ADD  R4, R2
-	ADD  R0, 0001H
+	MOVB R3, [R0]      ; obtains the length of the object
+	ADD  R3, R1        ; adds the length of the object plus the collum
+	ADD  R0, 0001H     ; obtains the address of the height of the object
+	MOVB R4, [R0]      ; obtains the height of the object
+	ADD  R4, R2        ; adds the height of the object with the line
+	ADD  R0, 0001H     ; obtains the address of the color of the object
 
-	MOV  R5, [R0]
-	ADD  R0, NEXT_WORD
+	MOV  R5, [R0]      ; obtains the color of the object
+	ADD  R0, NEXT_WORD ; obtains the address of the color pattern of the object
 
-	MOV  R6, R1
-	MOV  R7, R2
-	MOV  R8, [R0]
+	MOV  R6, R1        ; copies the collum of the pixel
+	MOV  R7, R2        ; copies the line of the pixel
+	MOV  R8, [R0]      ; obtains the color pattern of first line the object
+
 
 image_Draw_Loop:
-	SHL  R8, 1
+	SHL  R8, 1         ; obtains the carry
 	CALL pixel_Draw
-	ADD  R6, 0001H
-	CMP  R6, R3
-	JLT  image_Draw_Loop
+	ADD  R6, 0001H     ; moves on to the next collum
+	CMP  R6, R3        ; compares the collum with the value of collum plus length
+	JLT  image_Draw_Loop ; continues to draw up until all collums of the object are done
 
-	ADD  R7, 0001H
-	ADD  R0, NEXT_WORD
-	MOV  R8, [R0]
-	MOV  R6, R1
-	CMP  R7, R4
-	JLT  image_Draw_Loop
+	ADD  R7, 0001H     ; moves on to the next line
+	ADD  R0, NEXT_WORD ; obtains the address of the next line's color pattern 
+	MOV  R8, [R0]      ; obtains the line's color pattern
+	MOV  R6, R1        ; resets the value of the collum
+	CMP  R7, R4        ; compares the line with the value of collum plus length
+	JLT  image_Draw_Loop ; continues to draw up until all lines of the object are done
 
 image_Draw_Return:
 	POP  R8
@@ -437,29 +437,29 @@ image_Draw_Return:
 	RET
 
 pixel_Draw:
-	PUSH R0
-	PUSH R1
+	PUSH R0             ; address of the collum of the pixel 
+	PUSH R1		    ; address of the line of the pixel
 
-	JNC  pixel_Draw_Return
+	JNC  pixel_Draw_Return ; if the carry is not 1, pixel is not colored
 
-	MOV  R0, DEF_COL
-	MOV  [R0], R6
-	MOV  R0, DEF_LIN
-	MOV  [R0], R7
-	MOV  R0, DEF_PIXEL_READ
+	MOV  R0, DEF_COL    ; obtains the address of the collum of the pixel
+	MOV  [R0], R6       ; collum of the pixel
+	MOV  R0, DEF_LIN    ; obtains the address of the line of the pixel 
+	MOV  [R0], R7       ; line of the pixel
+	MOV  R0, DEF_PIXEL_READ ; address of the state of the pixel
 
-	MOV  R1, [R0]
-	CMP  R1, NULL
-	MOV  R0, DEF_PIXEL_WRITE
-	JNZ  pixel_Erase
-
-pixel_Paint:
-	MOV  [R0], R5
+	MOV  R1, [R0]	    ; state of the pixel    
+	CMP  R1, NULL	    ; checks if it's not colored
+	MOV  R0, DEF_PIXEL_WRITE ; address to color the pixel
+	JNZ  pixel_Erase    ; if pixel is already colored, deletes it
+	
+	pixel_Paint:
+	MOV  [R0], R5       ; colors the pixel
 	JMP  pixel_Draw_Return
 
 pixel_Erase:
-	MOV  R1, NULL
-	MOV  [R0], R1
+	MOV  R1, NULL       ; makes color value equal to null
+	MOV  [R0], R1       ; deletes pixel
 
 pixel_Draw_Return:
 	POP  R1
