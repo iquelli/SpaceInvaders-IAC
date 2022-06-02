@@ -1,9 +1,11 @@
 ;
 ;		File: grupo47.asm
-;		Authors: Gonçalo Bárias (ist1103124), Gustavo Diogo (ist199233), Raquel Braunschweig (ist1102624)
+;		Authors: 
+;                  Gonçalo Bárias (ist1103124), goncalo.barias@tecnico.ulisboa.pt
+;                  Gustavo Diogo (ist199233), gustavomanuel30@tecnico.ulisboa.pt
+;		   Raquel Braunschweig (ist1102624), raquel.braunschweig@tecnico.ulisboa.pt
 ;		Course: Computer Science and Engineering (Alameda) - IST
 ;		Description: Space Invaders game in PEPE Assembly.
-;
 
 ;=================================================================
 ; NUMERIC CONSTANTS:
@@ -32,16 +34,15 @@ CLEAR_SCREEN      EQU 6002H  ; address of the command to clear the screen
 SELECT_BACKGROUND EQU 6042H  ; address of the command to select a backround
 SOUND_PLAY        EQU 6048H  ; address of the command to play the sound
 
-MAX_LIN                 EQU 001FH ;
-MAX_LIN_METEOR          EQU 001BH ;
-MIN_COL_ROVER           EQU 0000H ; minimum column where the rover can be at
-MAX_COL_ROVER           EQU 003BH ; maximum column the rover can be at
-DELAY                   EQU 4000H ; delay to limit the speed of the rover
-ROVER_START_POSITION    EQU 201CH ; the start position of the rover
-ROVER_DIMENSIONS        EQU 0504H ; length and height of the rover
+MAX_LIN                 EQU 001FH  ; maximum line of the game
+MAX_LIN_METEOR          EQU 001BH  ; maximum line the giant meteor can be at
+MAX_COL_ROVER           EQU 003BH  ; maximum column the rover can be at
+DELAY                   EQU 4000H  ; delay to limit the speed of the rover
+ROVER_START_POSITION    EQU 201CH  ; the start position of the rover
+ROVER_DIMENSIONS        EQU 0504H  ; length and height of the rover
 ROVER_COLOR             EQU 0F0FFH ; color of the rover
-METEOR_START_POSITION   EQU 2C05H ; the start position of the meteor
-METEOR_GIANT_DIMENSIONS EQU 0505H ; length and height of the bad giant meteor
+METEOR_START_POSITION   EQU 2C05H  ; the start position of the meteor
+METEOR_GIANT_DIMENSIONS EQU 0505H  ; length and height of the bad giant meteor
 BAD_METEOR_GIANT_COLOR  EQU 0FF00H ; color of the bad giant meteor
 
 TRUE         EQU 0001H      ; value equal to one
@@ -482,6 +483,7 @@ rover_Move:
 	PUSH R1             ; value to add to the current column
 	PUSH R2             ; current column of the rover
 	PUSH R3             ; maximum column the rover can be at
+	PUSH R4             ; new position of the rover
 
 	MOV  R0, ROVER      ; obtains the address of the rover
 	MOVB R2, [R0]       ; obtains the value of the current column of the rover
@@ -492,20 +494,21 @@ rover_Move:
 	CMP  R2, R3            ; compares updated column value with maximum column value
 	JGT  rover_Draw_Return
 	
-	CALL delay_Drawing_Cycle ; controls the speed that the rover moves
+	CALL delay_Drawing_Cycle ; controls the speed at which the rover moves
 
 	CALL image_Draw
 
 	SHL  R2, 8           ; so R2 has 16 bits
 	MOV  R0, ROVER       ; obtains the address of the rover
-	MOV  R1, [R0]        ; obtains the current position of the rover
+	MOV  R4, [R0]        ; obtains the current position of the rover
 	MOV  R3, 00FFH       ; variable to obtain the only the line of the rover
-	AND  R1, R3          ; clears column from position
-	OR   R1, R2          ; adds new column
-	MOV  [R0], R1        ; updates the current position of the rover
+	AND  R4, R3          ; clears column from position
+	OR   R4, R2          ; adds new column
+	MOV  [R0], R4        ; updates the current position of the rover
 	CALL image_Draw
 
 rover_Draw_Return:
+	POP  R4
 	POP  R3
 	POP  R2
 	POP  R1
@@ -574,52 +577,55 @@ energy_Update_Display:
 ;-----------------------------------------------------------------
 
 meteor_Move:
-	PUSH R1
-	PUSH R2
-	PUSH R3
+	PUSH R1              ; meteor's new position
+	PUSH R2              ; column of the bad giant meteor
+	PUSH R3              ; maximum line the meteor can be at
+	PUSH R4              ; address of the command to make sound play
 
-	MOV  R0, BAD_METEOR_GIANT
-	ADD  R0, 1
-	MOVB R2, [R0]
-	SUB  R0, 1
-	ADD  R2, 1
+	MOV  R0, BAD_METEOR_GIANT ; obtains the address of the giant meteor
+	ADD  R0, 1           ; obtains the address of the the meteor's position
+	MOVB R2, [R0]        ; obtains the line of the meteor
+	SUB  R0, 1           ; obtains the address of the giant meteor
+	ADD  R2, 1           ; uptates the line
 
-	MOV  R3, MAX_LIN_METEOR
-	CMP  R2, R3
+	MOV  R3, MAX_LIN_METEOR ; obtains the value of the maximm line the meteor can be at
+	CMP  R2, R3             ; compares new line with maximum line
 	JGT  meteor_Move_Return
 	
-	CALL delay_Drawing_Cycle
+	CALL delay_Drawing_Cycle  ; controls the speed at which the meteor moves
 
 	CALL image_Draw
-	MOV  R0, BAD_METEOR_GIANT
-	MOV  R1, [R0]
-	MOV  R3, 0FF00H
-	AND  R1, R3
-	OR   R1, R2
-	MOV  [R0], R1
+	MOV  R0, BAD_METEOR_GIANT ; obtains the address of the giant meteor
+	MOV  R1, [R0]        ; obtains meteor's current position
+	MOV  R3, 0FF00H      ; value to obtain only the column of the meteor
+	AND  R1, R3          ; removes current line from position
+	OR   R1, R2          ; adds new line to the position
+	MOV  [R0], R1        ; updates the meteor's position
 
 	CALL image_Draw
-	MOV  R1, SOUND_PLAY
-	MOV  R2, 0
-	MOV  [R1], R2
+	MOV  R4, SOUND_PLAY  ; obtains the address to the command that makes sound play 
+	MOV  [R4], 0         ; makes sound play
 
 meteor_Move_Return:
+	POP  R4
 	POP  R3
 	POP  R2
 	POP  R1
 	RET
 
 meteor_Reset:
-	PUSH R0
-	PUSH R1
+	PUSH R0              ; address of the bad giant meteor
+	PUSH R1              ; starting position of the meteor
+	PUSH R2              ; meteor's dimensions
 
-	MOV  R1, METEOR_START_POSITION
-	MOV  R0, BAD_METEOR_GIANT
-	MOV  [R0], R1
-	MOV  R1, METEOR_GIANT_DIMENSIONS
-	ADD  R0, NEXT_WORD
-	MOV  [R0], R1
+	MOV  R1, METEOR_START_POSITION ; obtains the meteor's starting position
+	MOV  R0, BAD_METEOR_GIANT      ; obtains the address of the meteor
+	MOV  [R0], R1                  ; resets position
+	MOV  R2, METEOR_GIANT_DIMENSIONS ; obtains the meteor's dimensions
+	ADD  R0, NEXT_WORD             ; obtains the address of the meteor's dimensions
+	MOV  [R0], R1                  ; resets the dimensions
 
+	POP  R2
 	POP  R1
 	POP  R0
 	RET
@@ -696,12 +702,12 @@ var_Reset_Loop:
 	RET
 
 delay_Drawing:
-	PUSH R0
-	MOV  R0, DELAY
+	PUSH R0              ; value of the delay       
+	MOV  R0, DELAY       ; obtains the value of the delay
 
 delay_Drawing_Cycle:
-	SUB  R0, 1
-	JNZ  delay_Drawing_Cycle
+	SUB  R0, 1           ; subtracts one from the delay
+	JNZ  delay_Drawing_Cycle ; continues until delay is zero
 
 	POP  R0
 	RET
