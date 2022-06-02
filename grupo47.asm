@@ -206,22 +206,22 @@ key_Sweeper:
 	MOV  R3, NULL
 
 key_Sweeper_Wait:
-	SHR  R2, 1
+	SHR  R2, 1             ; moves on to the next line of the keyboard
 	JZ   key_Sweeper_Save
 
         MOV  R1, KEYPAD_COL
-	MOVB [R0], R2
-	MOVB R3, [R1]
+	MOVB [R0], R2         ; stores the value of the line currently being analysed
+	MOVB R3, [R1]         ; saves the value of the column
 	MOV  R1, 000FH
-	AND  R3, R1
-	CMP  R3, NULL
+	AND  R3, R1           ; stores the value of the column of the key being pressed
+	CMP  R3, NULL         ; keeps going up until a key is being pressed
 	JZ   key_Sweeper_Wait
 
 key_Sweeper_Save:
-	SHL  R3, 8
-	OR   R3, R2
+	SHL  R3, 8            ; makes up space to store the line
+	OR   R3, R2           ; saves the line of the key being pressed
 	MOV  R0, KEY_PRESSING
-	MOV  [R0], R3
+	MOV  [R0], R3         ; updates the key that is being pressed
 
 	POP  R3
 	POP  R2
@@ -235,31 +235,31 @@ key_Convert:
 	PUSH R2
 
 	MOV  R2, KEY_PRESSING
-	MOVB R1, [R2]
-	ADD  R2, 0001H
-	MOVB R0, [R2]
+	MOVB R1, [R2]          ; 
+	ADD  R2, 0001H         ; 
+	MOVB R0, [R2]          ; 
 
-	MOV  R2, 0000H
+	MOV  R2, 0000H         ; resets the value of the key being pressed
 
 	CMP  R0, NULL
 	JNZ  key_Convert_Lin
 	MOV  R0, 0010H
 
 key_Convert_Lin:
-	SHR  R0, 1
+	SHR  R0, 1             ;
 	JZ   key_Convert_Col
-	ADD  R2, 0004H
+	ADD  R2, 0004H         ;
 	JMP  key_Convert_Lin
 
 key_Convert_Col:
-	SHR  R1, 1
+	SHR  R1, 1             ;
 	JZ   key_Convert_Save
-	ADD  R2, 0001H
+	ADD  R2, 0001H         ;
 	JMP  key_Convert_Col
 
 key_Convert_Save:
 	MOV  R1, KEY_PRESSING
-	MOV  [R1], R2
+	MOV  [R1], R2         ; changes the value of the key currently pressed
 
 	POP  R2
 	POP  R1
@@ -272,15 +272,15 @@ key_CheckUpdate:
 	PUSH R2
 
 	MOV  R0, KEY_PRESSED
-	MOV  R1, [R0]
+	MOV  R1, [R0]         ; obtains the value of the key pressed before
 	MOV  R0, KEY_PRESSING
-	MOV  R2, [R0]
-	CMP  R1, R2
+	MOV  R2, [R0]         ; obtains the value of the key currently pressed
+	CMP  R1, R2           ; compares both values
 	JZ   key_CheckUpdate_Return
 
 	MOV  R0, KEY_CHANGE
 	MOV  R1, TRUE
-	MOV  [R0], R1
+	MOV  [R0], R1         ; marks that there was a key change
 
 key_CheckUpdate_Return:
 	POP  R2
@@ -294,24 +294,24 @@ key_Actions:
 	PUSH R2
 
 	MOV  R0, KEY_PRESSING
-	MOV  R1, [R0]
-	SHL  R1, 1
-	MOV  R0, KEY_LIST
-	MOV  R2, [R0 + R1]
+	MOV  R1, [R0]         ; obtains the value of the key currently pressed
+	SHL  R1, 1            ;  
+	MOV  R0, KEY_LIST     
+	MOV  R2, [R0 + R1]    ; obtains the address of the function to call
 	CALL R2
 
 	MOV  R1, KEY_CHANGE
-	MOV  R2, [R1]
-	CMP  R2, FALSE
+	MOV  R2, [R1]         ; obtains the value of key change (TRUE or FALSE)
+	CMP  R2, FALSE        ; checks if there was no change
 	JZ   key_Actions_Return
 
 	MOV  R0, FALSE
-	MOV  [R1], R0
+	MOV  [R1], R0         ; resets the variable key change
 
-	MOV  R1, KEY_PRESSING
-	MOV  R2, [R1]
+	MOV  R1, KEY_PRESSING 
+	MOV  R2, [R1]         ; updates the value of the key currently pressed
 	MOV  R1, KEY_PRESSED
-	MOV  [R1], R2
+	MOV  [R1], R2         ; updates the value of the key pressed previously
 
 key_Actions_Return:
 	POP  R2
@@ -324,8 +324,8 @@ key_VerifyChange:
 	PUSH R1
 
 	MOV  R0, KEY_CHANGE
-	MOV  R1, [R0]
-	CMP  R1, FALSE
+	MOV  R1, [R0]         ; obtains the value of key change (TRUE or FALSE)
+	CMP  R1, FALSE        ; checks if there has been a key change
 
 	POP  R1
 	POP  R0
