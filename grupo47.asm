@@ -1,11 +1,11 @@
 ;
-;		File: grupo47.asm
-;		Authors:
+;	File: grupo47.asm
+;	Authors:
 ;               Gonçalo Bárias (ist1103124), goncalo.barias@tecnico.ulisboa.pt
 ;               Gustavo Diogo (ist199233), gustavomanuel30@tecnico.ulisboa.pt
-;		        Raquel Braunschweig (ist1102624), raquel.braunschweig@tecnico.ulisboa.pt
-;		Course: Computer Science and Engineering (Alameda) - IST
-;		Description: Space Invaders game in PEPE Assembly.
+;		Raquel Braunschweig (ist1102624), raquel.braunschweig@tecnico.ulisboa.pt
+;	Course: Computer Science and Engineering (Alameda) - IST
+;	Description: Space Invaders game in PEPE Assembly.
 
 ;=================================================================
 ; NUMERIC CONSTANTS:
@@ -89,13 +89,13 @@ KEY_LIST:
 
 ;=================================================================
 ; IMAGE TABLES:
-; The first WORD represents the top left pixel of the image.
-; The second WORD contains the dimensions (height and length) of
-; canvas the image is painted on.
-; The third WORD contains the color to paint the image.
-; The rest of the WORD's are used to define the pattern of each
-; line, each one represents a line with 0's (uncolored pixels) and
-; 1's (colored pixels).
+; - The first WORD represents the top left pixel of the image.
+; - The second WORD contains the dimensions (height and length) of
+;   canvas the image is painted on.
+; - The third WORD contains the color to paint the image.
+; - The rest of the WORD's are used to define the pattern of each
+;   line, each one represents a line with 0's (uncolored pixels) and
+;   1's (colored pixels).
 ;-----------------------------------------------------------------
 
 ROVER:
@@ -160,7 +160,7 @@ game_Init:
 	CALL energy_Reset
 	MOV  R0, 0
 	MOV  R1, SELECT_BACKGROUND
-	MOV  [R1], R0              ; selects the starting background
+	MOV  [R1], R0             ; selects the starting background
 
 	MOV  R0, BAD_METEOR_GIANT
 	CALL image_Draw           ; draws the starting meteor
@@ -201,15 +201,15 @@ key_Sweeper:
 	PUSH R2
 	PUSH R3
 
-    MOV  R0, KEYPAD_LIN
-    MOV  R2, LIN_MASK
+        MOV  R0, KEYPAD_LIN
+        MOV  R2, LIN_MASK
 	MOV  R3, NULL
 
 key_Sweeper_Wait:
 	SHR  R2, 1
 	JZ   key_Sweeper_Save
 
-    MOV  R1, KEYPAD_COL
+        MOV  R1, KEYPAD_COL
 	MOVB [R0], R2
 	MOVB R3, [R1]
 	MOV  R1, 000FH
@@ -452,23 +452,23 @@ pixel_Draw:
 	JGE  pixel_Draw_Return  ; outside the bottom of the screen
 
 	MOV  R0, DEF_COL
-	MOV  [R0], R6    ; sets the column of the pixel
+	MOV  [R0], R6         ; sets the column of the pixel
 	MOV  R0, DEF_LIN
-	MOV  [R0], R7    ; sets the line of the pixel
+	MOV  [R0], R7         ; sets the line of the pixel
 
 	MOV  R0, DEF_PIXEL_READ
-	MOV  R1, [R0]	         ; obtains the state of the pixel
-	CMP  R1, NULL	         ; checks if it's not colored
+	MOV  R1, [R0]	      ; obtains the state of the pixel
+	CMP  R1, NULL	      ; checks if it's not colored
 	MOV  R0, DEF_PIXEL_WRITE
-	JNZ  pixel_Erase         ; if pixel is already colored, deletes it
+	JNZ  pixel_Erase      ; if pixel is already colored, deletes it
 
 pixel_Paint:
-	MOV  [R0], R5          ; colors the pixel
+	MOV  [R0], R5         ; colors the pixel
 	JMP  pixel_Draw_Return
 
 pixel_Erase:
-	MOV  R1, NULL ; makes color value equal to null
-	MOV  [R0], R1 ; deletes pixel
+	MOV  R1, NULL         ; makes color value equal to null
+	MOV  [R0], R1         ; deletes pixel
 
 pixel_Draw_Return:
 	POP  R1
@@ -481,8 +481,8 @@ pixel_Draw_Return:
 
 rover_Move:
 	PUSH R0
-	PUSH R2             ; current column of the rover
-	PUSH R3             ; maximum column the rover can be at
+	PUSH R2
+	PUSH R3
 
 	MOV  R0, ROVER      ; obtains the address of the rover
 	MOVB R2, [R0]       ; obtains the value of the current column of the rover
@@ -512,12 +512,12 @@ rover_Draw_Return:
 	RET
 
 rover_Reset:
-	PUSH R0              ; rover's address
-	PUSH R1              ; rover's position
+	PUSH R0
+	PUSH R1
 
 	MOV  R0, ROVER        ; obtains the address of the rover
 	MOV  R1, ROVER_START_POSITION ; obtains the rover's default starting position
-	MOV  [R0], R1        ; updates the rover's current position to the starting position
+	MOV  [R0], R1         ; updates the rover's current position to the starting position
 
 	POP  R1
 	POP  R0
@@ -589,9 +589,9 @@ energy_Reset:
 ;-----------------------------------------------------------------
 
 meteor_Move:
-	PUSH R1              ; meteor's new position
-	PUSH R2              ; column of the bad giant meteor
-	PUSH R3              ; maximum line the meteor can be at
+	PUSH R1
+	PUSH R2
+	PUSH R3
 
 	MOV  R0, BAD_METEOR_GIANT ; obtains the address of the giant meteor
 	ADD  R0, 1           ; obtains the address of the the meteor's position
@@ -642,21 +642,21 @@ hextodec_Convert:
 	PUSH R3
 	PUSH R4
 
-	MOV  R0, R1
-	MOV  R3, HEXTODEC_MSD
+	MOV  R0, R1          ; obtains the value to convert 
+	MOV  R3, HEXTODEC_MSD 
 	MOV  R4, HEXTODEC_LSD
+	
+	DIV  R0, R3          ; obtains the first digit
+	MOD  R1, R3          ; takes out the first digit
 
-	DIV  R0, R3
-	MOD  R1, R3
+	MOV  R2, R1          ; moves the remaning value to a new variable
+	DIV  R2, R4          ; gets the second digit
+	SHL  R0, 4           ; isolates the first digit
+	OR   R0, R2          ; adds the second one
 
-	MOV  R2, R1
-	DIV  R2, R4
-	SHL  R0, 4
-	OR   R0, R2
-
-	MOD  R1, R4
-	SHL  R0, 4
-	OR   R0, R1
+	MOD  R1, R4          ; obtains the third digit
+	SHL  R0, 4           ; isolates the first and second digit
+	OR   R0, R1          ; adds the third digit
 
 	POP  R4
 	POP  R3
@@ -670,15 +670,15 @@ var_Reset:
 	PUSH R3
 
 	MOV  R1, VAR_LIST
-	MOV  R3, [R1]
+	MOV  R3, [R1]        ; obtains the address of all program variables
 	MOV  R2, 0
 
 var_Reset_Loop:
-	ADD  R1, NEXT_WORD
-	MOV  R0, [R1]
-	MOV  [R0], R2
+	ADD  R1, NEXT_WORD   ; obtains the next address
+	MOV  R0, [R1]        ; stores the address in another variable
+	MOV  [R0], R2        ; resets the content in the address
 
-	SUB  R3, 0001H
+	SUB  R3, 0001H       ; keeps going up until all program variables have been cleared
 	JNZ  var_Reset_Loop
 
 	POP  R3
@@ -689,7 +689,7 @@ var_Reset_Loop:
 
 delay_Drawing:
 	PUSH R0              ; value of the delay
-	MOV  R0, ROVER_DELAY       ; obtains the value of the delay
+	MOV  R0, ROVER_DELAY ; obtains the value of the delay
 
 delay_Drawing_Loop:
 	SUB  R0, 1           ; subtracts one from the delay
