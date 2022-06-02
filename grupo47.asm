@@ -532,30 +532,30 @@ energy_Update:
 	PUSH R2
 	PUSH R3
 
-	MOV  R2, ENERGY_HEX
-	MOV  R1, [R2]
-	ADD  R1, R0
+	MOV  R2, ENERGY_HEX  ; obtains the address of the current energy 
+	MOV  R1, [R2]        ; obtains the current energy
+	ADD  R1, R0          ; adds the current energy with the amount to increase/decrease 
 
 	JN   energy_Update_MinLim
-	MOV  R3, ENERGY_HEX_MAX
-	CMP  R1, R3
+	MOV  R3, ENERGY_HEX_MAX ; obtains the maximum value of energy
+	CMP  R1, R3          ; compares maximum value with current energy value
 	JGE  energy_Update_MaxLim
 
 	JMP  energy_Update_Display
 
 energy_Update_MaxLim:
-	MOV  R1, ENERGY_HEX_MAX
+	MOV  R1, ENERGY_HEX_MAX ; makes the value of energy equal to the maximum value of energy
 	JMP  energy_Update_Display
 
 energy_Update_MinLim:
-	MOV  R1, ENERGY_HEX_MIN
+	MOV  R1, ENERGY_HEX_MIN ; makes the value of energy equal to the minimum value of energy
 
 energy_Update_Display:
-	MOV  [R2], R1
+	MOV  [R2], R1         ; updates the value of energy
 
 	CALL hextodec_Convert
-	MOV  R2, DISPLAYS
-	MOV  [R2], R0
+	MOV  R2, DISPLAYS     ; obtains the address of the display
+	MOV  [R2], R0         ; updates the value in the display
 
 	POP  R3
 	POP  R2
@@ -567,13 +567,13 @@ energy_Reset:
 	PUSH R1
 	PUSH R2
 
-	MOV  R2, ENERGY_HEX
-	MOV  R1, ENERGY_HEX_MAX
-	MOV  [R2], R1
+	MOV  R2, ENERGY_HEX  ; obtains the address of the current energy 
+	MOV  R1, ENERGY_HEX_MAX ; obtains the maximum energy
+	MOV  [R2], R1        ; updates the current energy to maximum energy
 
 	CALL hextodec_Convert
-	MOV  R2, DISPLAYS
-	MOV  [R2], R0
+	MOV  R2, DISPLAYS     ; obtains the address of the display
+	MOV  [R2], R0         ; updates the value in the display
 
 	POP  R2
 	POP  R1
