@@ -25,7 +25,7 @@ HEXTODEC_MSD EQU 0064H
 HEXTODEC_LSD EQU 000AH
 
 DEF_LIN           EQU 600AH  ; address of the command to define a line
-DEF_COL           EQU 600CH  ; address of the command to define a collumn
+DEF_COL           EQU 600CH  ; address of the command to define a column
 DEF_PIXEL_WRITE   EQU 6012H  ; address of the command to write a pixel
 DEF_PIXEL_READ    EQU 6014H  ; address of the command to read a pixel's state
 CLEAR_SCREEN      EQU 6002H  ; address of the command to clear the screen
@@ -34,8 +34,8 @@ SOUND_PLAY        EQU 6048H  ; address of the command to play the sound
 
 MAX_LIN                 EQU 001FH ;
 MAX_LIN_METEOR          EQU 001BH ;
-MIN_COL_ROVER           EQU 0000H ; minimum collumn where the rover can be at
-MAX_COL_ROVER           EQU 003BH ; maximum collumn the rover can be at
+MIN_COL_ROVER           EQU 0000H ; minimum column where the rover can be at
+MAX_COL_ROVER           EQU 003BH ; maximum column the rover can be at
 DELAY                   EQU 4000H ; delay to limit the speed of the rover
 ROVER_START_POSITION    EQU 201CH ; the start position of the rover
 ROVER_DIMENSIONS        EQU 0504H ; length and height of the rover
@@ -390,16 +390,16 @@ key_Action_5_Return:
 ;-----------------------------------------------------------------
 
 image_Draw:
-	PUSH R1            ; collumn where the object currently is
+	PUSH R1            ; column where the object currently is
 	PUSH R2            ; line where the object currently is
 	PUSH R3            ; length of the object plus collumn
 	PUSH R4            ; height of the object plus line
 	PUSH R5            ; color of the object
 	PUSH R6            ; line of the pixel
-	PUSH R7            ; collumn of the pixel
+	PUSH R7            ; column of the pixel
 	PUSH R8            ; color pattern of the object
 
-	MOVB R1, [R0]      ; obtains the collumn of the object
+	MOVB R1, [R0]      ; obtains the column of the object
 	ADD  R0, 0001H     ; obtains the address of the line of the object
 	MOVB R2, [R0]      ; obtains the line of the object
 	ADD  R0, 0001H     ; obtains the address of the length of the object
@@ -414,7 +414,7 @@ image_Draw:
 	MOV  R5, [R0]      ; obtains the color of the object
 	ADD  R0, NEXT_WORD ; obtains the address of the color pattern of the object
 
-	MOV  R6, R1        ; copies the collumn of the pixel
+	MOV  R6, R1        ; copies the column of the pixel
 	MOV  R7, R2        ; copies the line of the pixel
 	MOV  R8, [R0]      ; obtains the color pattern of first line the object
 
@@ -422,15 +422,15 @@ image_Draw:
 image_Draw_Loop:
 	SHL  R8, 1         ; obtains the carry
 	CALL pixel_Draw
-	ADD  R6, 0001H     ; moves on to the next collumn
-	CMP  R6, R3        ; compares the collumn with the value of collumn plus length
-	JLT  image_Draw_Loop ; continues to draw up until all collumns of the object are done
+	ADD  R6, 0001H     ; moves on to the next column
+	CMP  R6, R3        ; compares the column with the value of column plus length
+	JLT  image_Draw_Loop ; continues to draw up until all columns of the object are done
 
 	ADD  R7, 0001H     ; moves on to the next line
 	ADD  R0, NEXT_WORD ; obtains the address of the next line's color pattern
 	MOV  R8, [R0]      ; obtains the line's color pattern
 	MOV  R6, R1        ; resets the value of the collumn
-	CMP  R7, R4        ; compares the line with the value of collumn plus length
+	CMP  R7, R4        ; compares the line with the value of column plus length
 	JLT  image_Draw_Loop ; continues to draw up until all lines of the object are done
 
 image_Draw_Return:
@@ -445,13 +445,13 @@ image_Draw_Return:
 	RET
 
 pixel_Draw:
-	PUSH R0             ; address of the collumn of the pixel
+	PUSH R0             ; address of the column of the pixel
 	PUSH R1		    ; address of the line of the pixel
 
 	JNC  pixel_Draw_Return ; if the carry is not 1, pixel is not colored
 
-	MOV  R0, DEF_COL    ; obtains the address of the collumn of the pixel
-	MOV  [R0], R6       ; collumn of the pixel
+	MOV  R0, DEF_COL    ; obtains the address of the column of the pixel
+	MOV  [R0], R6       ; column of the pixel
 	MOV  R0, DEF_LIN    ; obtains the address of the line of the pixel
 	MOV  [R0], R7       ; line of the pixel
 	MOV  R0, DEF_PIXEL_READ ; address of the state of the pixel
@@ -479,28 +479,30 @@ pixel_Draw_Return:
 ;-----------------------------------------------------------------
 
 rover_Move:
-	PUSH R1
-	PUSH R2
-	PUSH R3
+	PUSH R1             ; value to add to the current column
+	PUSH R2             ; current column of the rover
+	PUSH R3             ; maximum column the rover can be at
 
-	MOV  R0, ROVER
-	MOVB R2, [R0]
-	ADD  R2, R1
+	MOV  R0, ROVER      ; obtains the address of the rover
+	MOVB R2, [R0]       ; obtains the value of the current column of the rover
+	ADD  R2, R1         ; updates column value
 
-	JN   rover_Draw_Return
-	MOV  R3, MAX_COL_ROVER
-	CMP  R2, R3
+	JN   rover_Draw_Return 
+	MOV  R3, MAX_COL_ROVER ; obtains the value of the maximum column the rover can be at
+	CMP  R2, R3            ; compares updated column value with maximum column value
 	JGT  rover_Draw_Return
+	
+	CALL delay_Drawing_Cycle ; controls the speed that the rover moves
 
 	CALL image_Draw
 
-	SHL  R2, 8
-	MOV  R0, ROVER
-	MOV  R1, [R0]
-	MOV  R3, 00FFH
-	AND  R1, R3
-	OR   R1, R2
-	MOV  [R0], R1
+	SHL  R2, 8           ; so R2 has 16 bits
+	MOV  R0, ROVER       ; obtains the address of the rover
+	MOV  R1, [R0]        ; obtains the current position of the rover
+	MOV  R3, 00FFH       ; variable to obtain the only the line of the rover
+	AND  R1, R3          ; clears column from position
+	OR   R1, R2          ; adds new column
+	MOV  [R0], R1        ; updates the current position of the rover
 	CALL image_Draw
 
 rover_Draw_Return:
@@ -510,12 +512,12 @@ rover_Draw_Return:
 	RET
 
 rover_Reset:
-	PUSH R0
-	PUSH R1
+	PUSH R0              ; rover's address
+	PUSH R1              ; rover's position
 
-	MOV  R1, ROVER_START_POSITION
-	MOV  R0, ROVER
-	MOV  [R0], R1
+	MOV  R1, ROVER_START_POSITION ; obtains the rover's default starting position
+	MOV  R0, ROVE        ; obtains the address of the rover
+	MOV  [R0], R1        ; updates the rover's current position to the starting position
 
 	POP  R1
 	POP  R0
@@ -585,6 +587,8 @@ meteor_Move:
 	MOV  R3, MAX_LIN_METEOR
 	CMP  R2, R3
 	JGT  meteor_Move_Return
+	
+	CALL delay_Drawing_Cycle
 
 	CALL image_Draw
 	MOV  R0, BAD_METEOR_GIANT
