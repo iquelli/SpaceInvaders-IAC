@@ -4,9 +4,10 @@
 ;		        - Gonçalo Bárias (ist1103124), goncalo.barias@tecnico.ulisboa.pt
 ;		        - Gustavo Diogo (ist199233), gustavomanuel30@tecnico.ulisboa.pt
 ;		        - Raquel Braunschweig (ist1102624), raquel.braunschweig@tecnico.ulisboa.pt
+;		Group: 47
 ;		Course: Computer Science and Engineering (Alameda) - IST
 ;		Description: Space Invaders game in PEPE Assembly.
-;		Date: 17-06-2022
+;		Date: 03-06-2022
 
 ;=============================================================================
 ; NUMERIC CONSTANTS:
@@ -603,7 +604,7 @@ rover_Reset:
 ;=============================================================================
 
 ; ----------------------------------------------------------------------------
-; enery_Update: It updates the energy and the displays with the new value it
+; energy_Update: It updates the energy and the displays with the new value it
 ; calculates.
 ; - R0 -> value (%) to increase/decrease the energy percentage
 ; ----------------------------------------------------------------------------
