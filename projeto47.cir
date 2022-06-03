@@ -746,7 +746,7 @@
       "pinConnectionID" : -1,
       "pinValueFixed" : "1"
     },
-    "programFilePathName" : "grupo47.asm",
+    "programFilePathName" : "intermediate_version.asm",
     "nTabSpaces" : 4,
     "bus interface" : {
       "className" : "ModuleExtensionMasterBusReadWrite",
@@ -1496,7 +1496,7 @@
     "windowScreenWidthPixels" : 1024,
     "windowScreenHeightixels" : 512,
     "defaultPenColor" : 51063,
-    "image paths" : [ "mediacenter/space.jpg" ],
+    "image paths" : [ "mediacenter/spaceee.png" ],
     "sounds/videos settings" : [ {
       "filePathName" : "mediacenter/shoot.wav",
       "relative sound volume" : 0.4,
