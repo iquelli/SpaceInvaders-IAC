@@ -6,7 +6,7 @@
 ;		        - Raquel Braunschweig (ist1102624), raquel.braunschweig@tecnico.ulisboa.pt
 ;		Course: Computer Science and Engineering (Alameda) - IST
 ;		Description: Space Invaders game in PEPE Assembly.
-;               Date: 03-06-2022
+;		Date: 17-06-2022
 
 ;=============================================================================
 ; NUMERIC CONSTANTS:
@@ -14,7 +14,7 @@
 
 KEYPAD_LIN EQU 0C000H ; peripheral address of the lines
 KEYPAD_COL EQU 0E000H ; peripheral address of the columns
-LIN_MASK   EQU 0010H  ; mask used to sweep through all the lines of the keypad
+LIN_MASK   EQU 0008H  ; mask used to sweep through all the lines of the keypad
 
 DISPLAYS                    EQU 0A000H ; address used to access the displays
 ENERGY_MOVEMENT_CONSUMPTION EQU 0FFFBH ; energy depleted when the rover moves (-5%)
@@ -124,40 +124,29 @@ BAD_METEOR_GIANT:
 ;=============================================================================
 ; STACK POINTER:
 ;=============================================================================
+
 pile_Init:
 	TABLE 100H
 SP_Start:
 
 ;=============================================================================
-; MAIN: The starting point of the program.
+; MAIN: The starting point of the program. Initializes the program and starts
+; the main loop of the program.
 ;=============================================================================
 
 PLACE 0000H
 
-; ----------------------------------------------------------------------------
-; init: Initializes the program.
-; ----------------------------------------------------------------------------
-
-init:
+main:
 	MOV  SP, SP_Start  ; initializes the stack pointer
 	CALL game_Init
-
-
-; ----------------------------------------------------------------------------
-; main: Starts the main loop of the program.
-; ----------------------------------------------------------------------------
-
-main:
-	CALL key_Handling
-
-	JMP  main
+	JMP key_Handling   ; starts the main loop and keeps waiting for new keys
 
 ;=============================================================================
 ; GAME STATES: Controls the current state of the game.
 ;=============================================================================
 
 ; ----------------------------------------------------------------------------
-; game Init: Initializes the game by resetting everything and drawing the 
+; game_Init: Initializes the game by resetting everything and drawing the
 ; starting objects.
 ; ----------------------------------------------------------------------------
 
@@ -180,9 +169,8 @@ game_Init:
 	POP  R0
 	RET
 
-
 ; ----------------------------------------------------------------------------
-; game Reset: Resets all of the information from the current game.
+; game_Reset: Resets all of the information of the current game.
 ; ----------------------------------------------------------------------------
 
 game_Reset:
@@ -207,11 +195,11 @@ key_Handling:
 	CALL key_Convert
 	CALL key_CheckUpdate
 	CALL key_Actions
-	RET
 
+	JMP key_Handling
 
 ; ----------------------------------------------------------------------------
-; key Sweeper: Does a full swipe on the keypad to check the key the user is 
+; key_Sweeper: Does a full swipe on the keypad to check the key the user is
 ; pressing and saves it.
 ; ----------------------------------------------------------------------------
 
@@ -226,16 +214,18 @@ key_Sweeper:
 	MOV  R3, NULL
 
 key_Sweeper_Wait:
-	SHR  R2, 1            ; moves on to the next line of the keypad
-	JZ   key_Sweeper_Save ; it only swipes the keypad once
-
 	MOV  R1, KEYPAD_COL
 	MOVB [R0], R2         ; sends the value of the line currently being analysed to the line peripheral
 	MOVB R3, [R1]         ; saves the value of the column from the peripheral
 	MOV  R1, 000FH
 	AND  R3, R1           ; obtains only the bits 0-3 from the column peripheral
 	CMP  R3, NULL         ; keeps going up until a key is being pressed
-	JZ   key_Sweeper_Wait
+	JNZ  key_Sweeper_Save
+
+	SHR  R2, 1            ; moves on to the next line of the keypad
+	JZ   key_Sweeper_Save ; it only swipes the keypad once
+
+	JMP key_Sweeper_Wait
 
 key_Sweeper_Save:
 	SHL  R3, 8            ; makes up space to store the line
@@ -249,10 +239,9 @@ key_Sweeper_Save:
 	POP  R0
 	RET
 
-
 ; ----------------------------------------------------------------------------
-; key Convert: Converts the arbitrary column and line values into the
-; actual key the user is pressing. If no key is being pressed then it's as if 
+; key_Convert: Converts the arbitrary column and line values into the
+; actual key the user is pressing. If no key is being pressed then it's as if
 ; the user is pressing a 17th imaginary key.
 ; ----------------------------------------------------------------------------
 
@@ -292,10 +281,9 @@ key_Convert_Save:
 	POP  R1
 	POP  R0
 	RET
-	
-	
+
 ; ----------------------------------------------------------------------------
-; key CheckUpdate: Checks if the user is holding down a key or if it's a new
+; key_CheckUpdate: Checks if the user is holding down a key or if it's a new
 ; key all together.
 ; ----------------------------------------------------------------------------
 
@@ -321,10 +309,9 @@ key_CheckUpdate_Return:
 	POP  R0
 	RET
 
-
 ; ----------------------------------------------------------------------------
-; key Actions: Executes a certain routine depending on the key that is 
-; currently being pressed down.
+; key_Actions: Executes a certain routine depending on the key that is
+; currently being held down.
 ; ----------------------------------------------------------------------------
 
 key_Actions:
@@ -358,9 +345,8 @@ key_Actions_Return:
 	POP  R0
 	RET
 
-
 ; ----------------------------------------------------------------------------
-; key Verify Changes: Changes the Z flag to 0 if the user is pressing down the
+; key_VerifyChange: Changes the Z flag to 0 if the user is pressing down the
 ; same key, else it sets it to 1. It's used to know if the user is holding down
 ; a key or not.
 ; ----------------------------------------------------------------------------
@@ -376,7 +362,6 @@ key_VerifyChange:
 	POP  R1
 	POP  R0
 	RET
-
 
 ;=============================================================================
 ; KEY ACTIONS: Executes a command based on the key that is pressed.
@@ -395,7 +380,6 @@ key_Action_0:
 	POP  R1
 	RET
 
-
 ; ----------------------------------------------------------------------------
 ; key_Action_2: Moves the rover to the right.
 ; ----------------------------------------------------------------------------
@@ -409,7 +393,6 @@ key_Action_2:
 	POP  R1
 	RET
 
-
 ; ----------------------------------------------------------------------------
 ; key_Action_Placeholder: Routine that blocks certain keys from doing anything.
 ; ----------------------------------------------------------------------------
@@ -417,19 +400,17 @@ key_Action_2:
 key_Action_Placeholder:
 	RET
 
-
 ; ----------------------------------------------------------------------------
 ; key_Action_3: Moves the meteor one unit down
 ; ----------------------------------------------------------------------------
 
 key_Action_3:
 	CALL key_VerifyChange
-	JZ   key_Action_3_Return ; if the button is being held down it jumps
+	JZ   key_Action_3_Return ; if the button is being held down it returns
 	CALL meteor_Move
 
 key_Action_3_Return:
 	RET
-
 
 ; ----------------------------------------------------------------------------
 ; key_Action_4: Decreases the energy value in the display.
@@ -437,13 +418,12 @@ key_Action_3_Return:
 
 key_Action_4:
 	CALL key_VerifyChange
-	JZ   key_Action_4_Return ; if the button is being held down it jumps
+	JZ   key_Action_4_Return ; if the button is being held down it returns
 	MOV  R0, ENERGY_MOVEMENT_CONSUMPTION
 	CALL energy_Update
 
 key_Action_4_Return:
 	RET
-
 
 ; ----------------------------------------------------------------------------
 ; key_Action_5: Increases the energy value in the display.
@@ -451,22 +431,22 @@ key_Action_4_Return:
 
 key_Action_5:
 	CALL key_VerifyChange
-	JZ   key_Action_5_Return ; if the button is being held down it jumps
+	JZ   key_Action_5_Return ; if the button is being held down it returns
 	MOV  R0, ENERGY_GOOD_METEOR_INCREASE
 	CALL energy_Update
 
 key_Action_5_Return:
 	RET
 
-
 ;=============================================================================
 ; PIXEL SCREEN: Controls what gets pixelated onto the screen.
 ;=============================================================================
 
 ; ----------------------------------------------------------------------------
-; image Draw: Draws an image received as an argument into the pixelscreen.
-; It knows the top left coordinate and the dimensions of the image in order to 
-; paint it. R0 -> image table to draw
+; image_Draw: Draws an image received as an argument into the pixelscreen.
+; It knows the top left coordinate and the dimensions of the image in order to
+; paint it.
+; - R0 -> image table to draw
 ; ----------------------------------------------------------------------------
 
 image_Draw:
@@ -524,14 +504,13 @@ image_Draw_Return:
 	POP  R1
 	RET
 
-
 ; ----------------------------------------------------------------------------
-; pixel Draw: Either erases a pixel if the pixel state is not 0, draws a pixel 
+; pixel_Draw: Either erases a pixel if the pixel state is not 0, draws a pixel
 ; if the pixel state is 0 or does nothing if the C flag is 0.
-; R5 -> current color to paint if possible
-; R6 -> current column of the pixel
-; R7 -> current line of the pixel
-; C flag -> 0 it does not paint or erase, 1 it can paint or erase
+; - R5 -> current color to paint if possible
+; - R6 -> current column of the pixel
+; - R7 -> current line of the pixel
+; - C flag -> 0 it does not paint or erase, 1 it can paint or erase
 ; ----------------------------------------------------------------------------
 
 pixel_Draw:
@@ -567,14 +546,13 @@ pixel_Draw_Return:
 	POP  R0
 	RET
 
-
 ;=============================================================================
 ; ROVER: Deals with the movement of the rover that defends planet X.
 ;=============================================================================
 
 ; ----------------------------------------------------------------------------
-; rover Move: Moves the rover continuously left to right.
-; R1 -> direction the rover is supposed to go
+; rover_Move: Moves the rover continuously left to right.
+; - R1 -> direction the rover is supposed to go
 ; ----------------------------------------------------------------------------
 
 rover_Move:
@@ -609,9 +587,8 @@ rover_Move_Return:
 	POP  R0
 	RET
 
-
 ; ----------------------------------------------------------------------------
-; rover Reset: Resets the rovers starting position to the center of the screen.
+; rover_Reset: Resets the rovers starting position to the center of the screen.
 ; ----------------------------------------------------------------------------
 
 rover_Reset:
@@ -626,15 +603,15 @@ rover_Reset:
 	POP  R0
 	RET
 
-
 ;=============================================================================
-; ENERGY OF THE ROVER: The rover isn't immune and therefore has internal 
+; ENERGY OF THE ROVER: The rover isn't immune and therefore has internal
 ; energy that can decrease with time, but also increase with certain actions.
 ;=============================================================================
 
 ; ----------------------------------------------------------------------------
-; enery Update: It updates the energy and the displays with the new value it
-; calculates. R0 -> value (%) to increase/decrease the energy percentage
+; enery_Update: It updates the energy and the displays with the new value it
+; calculates.
+; - R0 -> value (%) to increase/decrease the energy percentage
 ; ----------------------------------------------------------------------------
 
 energy_Update:
@@ -672,9 +649,8 @@ energy_Update_Display:
 	POP  R1
 	RET
 
-
 ; ----------------------------------------------------------------------------
-; energy Reset: Resets the energy back to 100% when a new game begins.
+; energy_Reset: Resets the energy back to 100% when a new game begins.
 ; ----------------------------------------------------------------------------
 
 energy_Reset:
@@ -684,7 +660,7 @@ energy_Reset:
 
 	MOV  R2, ENERGY_HEX
 	MOV  R1, ENERGY_HEX_MAX
-	MOV  [R2], R1        ; resets the current energy to maximum energy
+	MOV  [R2], R1         ; resets the current energy to maximum energy
 
 	CALL hextodec_Convert
 	MOV  R2, DISPLAYS
@@ -700,12 +676,12 @@ energy_Reset:
 ;=============================================================================
 
 ;=============================================================================
-; METEOR: Deals with two types of meteors, the good ones that help the rover 
+; METEOR: Deals with two types of meteors, the good ones that help the rover
 ; defend the planet X and the bad ones that destroy the rover and the planet X.
 ;=============================================================================
 
 ; ----------------------------------------------------------------------------
-; meteor Move: Moves the meteor one line for each press of a certain key
+; meteor_Move: Moves the meteor one line for each press of a certain key
 ; ----------------------------------------------------------------------------
 
 meteor_Move:
@@ -741,9 +717,8 @@ meteor_Move_Return:
 	POP  R0
 	RET
 
-
 ; ----------------------------------------------------------------------------
-; meteor Reset: Resets the meteor's starting position.
+; meteor_Reset: Resets the meteor's starting position.
 ; ----------------------------------------------------------------------------
 
 meteor_Reset:
@@ -763,10 +738,10 @@ meteor_Reset:
 ;=============================================================================
 
 ; ----------------------------------------------------------------------------
-; hextodec Convert: Given any hexadecimal value it converts it into 12 bits,
+; hextodec_Convert: Given any hexadecimal value it converts it into 12 bits,
 ; where each group of 4 bits represent the a digit of the decimal version.
-; R0 -> hexadecimal converted into decimal in the form of 12 bits
-; R1 -> hexadecimal number to convert
+; - R0 -> hexadecimal converted into decimal in the form of 12 bits
+; - R1 -> hexadecimal number to convert
 ; ----------------------------------------------------------------------------
 
 hextodec_Convert:
@@ -795,9 +770,8 @@ hextodec_Convert:
 	POP  R2
 	RET
 
-
 ; ----------------------------------------------------------------------------
-; var Reset: It looks at all the program variables and resets them to 0
+; var_Reset: It looks at all the program variables and resets them to 0
 ; (NULL or FALSE).
 ; ----------------------------------------------------------------------------
 
@@ -825,9 +799,8 @@ var_Reset_Loop:
 	POP  R0
 	RET
 
-
 ; ----------------------------------------------------------------------------
-; delay Drawing; Controls the rate at which the program draws an image
+; delay_Drawing; Controls the rate at which the program draws an image
 ; ----------------------------------------------------------------------------
 
 delay_Drawing:
