@@ -5,7 +5,7 @@
 ;		        - Gustavo Diogo (ist199233), gustavomanuel30@tecnico.ulisboa.pt
 ;		        - Raquel Braunschweig (ist1102624), raquel.braunschweig@tecnico.ulisboa.pt
 ;		Course: Computer Science and Engineering (Alameda) - IST
-;		Description: Space Invaders game in PEPE Assembly.
+;		Description: Intermediate version of Space Invaders game in PEPE Assembly.
 ;               Date: 03-06-2022
 
 ;=============================================================================
