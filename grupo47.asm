@@ -311,6 +311,24 @@ key_CheckUpdate_Return:
 	RET
 
 ; ----------------------------------------------------------------------------
+; key_VerifyChange: Changes the Z flag to 0 if the user is pressing down the
+; same key, else it sets it to 1. It's used to know if the user is holding down
+; a key or not.
+; ----------------------------------------------------------------------------
+
+key_VerifyChange:
+	PUSH R0
+	PUSH R1
+
+	MOV  R0, KEY_CHANGE
+	MOV  R1, [R0]         ; obtains the value of key change (TRUE or FALSE)
+	CMP  R1, FALSE        ; checks if there has been a key change
+
+	POP  R1
+	POP  R0
+	RET
+
+; ----------------------------------------------------------------------------
 ; key_Actions: Executes a certain routine depending on the key that is
 ; currently being held down.
 ; ----------------------------------------------------------------------------
@@ -327,11 +345,10 @@ key_Actions:
 	MOV  R2, [R0 + R1]    ; obtains the address of the routine to call
 	CALL R2
 
-	MOV  R1, KEY_CHANGE
-	MOV  R2, [R1]         ; obtains the value of key change (TRUE or FALSE)
-	CMP  R2, FALSE        ; checks if there was no change
+	CALL key_VerifyChange ; checks if there was no change in the keys
 	JZ   key_Actions_Return
 
+	MOV  R1, KEY_CHANGE
 	MOV  R0, FALSE
 	MOV  [R1], R0         ; resets the variable key change
 
@@ -342,24 +359,6 @@ key_Actions:
 
 key_Actions_Return:
 	POP  R2
-	POP  R1
-	POP  R0
-	RET
-
-; ----------------------------------------------------------------------------
-; key_VerifyChange: Changes the Z flag to 0 if the user is pressing down the
-; same key, else it sets it to 1. It's used to know if the user is holding down
-; a key or not.
-; ----------------------------------------------------------------------------
-
-key_VerifyChange:
-	PUSH R0
-	PUSH R1
-
-	MOV  R0, KEY_CHANGE
-	MOV  R1, [R0]         ; obtains the value of key change (TRUE or FALSE)
-	CMP  R1, FALSE        ; checks if there has been a key change
-
 	POP  R1
 	POP  R0
 	RET
@@ -627,7 +626,7 @@ energy_Update:
 	JN   energy_Update_MinLim ; if the energy becomes negative it becomes stuck at 0
 	MOV  R3, ENERGY_HEX_MAX   ; obtains the maximum value of energy
 	CMP  R1, R3               ; compares current energy value with maximum energy value
-	JGE  energy_Update_MaxLim ; when the energy exceeds the limit it also becomes stuck at the maximum
+	JGT  energy_Update_MaxLim ; when the energy exceeds the limit it also becomes stuck at the maximum
 
 	JMP  energy_Update_Display
 
@@ -665,7 +664,7 @@ energy_Reset:
 
 	CALL hextodec_Convert
 	MOV  R2, DISPLAYS
-	MOV  [R2], R0         ; resets the value in the display
+	MOV  [R2], R0         ; resets the value in the display in decimal form
 
 	POP  R2
 	POP  R1
