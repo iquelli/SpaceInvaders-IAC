@@ -397,7 +397,7 @@ key_Action_0:
 
 
 ; ----------------------------------------------------------------------------
- key_Action_2: Moves the rover to the right.
+; key_Action_2: Moves the rover to the right.
 ; ----------------------------------------------------------------------------
 
 key_Action_2:
@@ -419,7 +419,7 @@ key_Action_Placeholder:
 
 
 ; ----------------------------------------------------------------------------
- key_Action_3: Moves the meteor one unit down
+; key_Action_3: Moves the meteor one unit down
 ; ----------------------------------------------------------------------------
 
 key_Action_3:
@@ -432,7 +432,7 @@ key_Action_3_Return:
 
 
 ; ----------------------------------------------------------------------------
- key_Action_4: Decreases the energy value in the display.
+; key_Action_4: Decreases the energy value in the display.
 ; ----------------------------------------------------------------------------
 
 key_Action_4:
@@ -446,7 +446,7 @@ key_Action_4_Return:
 
 
 ; ----------------------------------------------------------------------------
- key_Action_5: Increases the energy value in the display.
+; key_Action_5: Increases the energy value in the display.
 ; ----------------------------------------------------------------------------
 
 key_Action_5:
