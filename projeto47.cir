@@ -746,7 +746,6 @@
       "pinConnectionID" : -1,
       "pinValueFixed" : "1"
     },
-    "programFilePathName" : "intermediate_version.asm",
     "nTabSpaces" : 4,
     "bus interface" : {
       "className" : "ModuleExtensionMasterBusReadWrite",
@@ -1499,7 +1498,7 @@
     "image paths" : [ "mediacenter/spaceee.png" ],
     "sounds/videos settings" : [ {
       "filePathName" : "mediacenter/shoot.wav",
-      "relative sound volume" : 0.4,
+      "relative sound volume" : 1.0,
       "relative start time" : 0.0,
       "relative stop time" : 1.0,
       "playAsClip" : false

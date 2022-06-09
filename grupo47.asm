@@ -36,13 +36,14 @@ CLEAR_SCREEN      EQU 6002H ; address of the command to clear the screen
 SELECT_BACKGROUND EQU 6042H ; address of the command to select a backround
 SOUND_PLAY        EQU 605AH ; address of the command to play the sound
 
-MAX_LIN                 EQU 0020H  ; the number of lines
+MIN_LIN                 EQU 0000H  ; the minimum line we can paint at
+MAX_LIN                 EQU 001FH  ; the maximum line we can paint at
 MAX_COL_ROVER           EQU 003BH  ; maximum column the rover can be at
-ROVER_DELAY             EQU 4000H  ; delay used to limit the speed of the rover
 ROVER_START_POSITION    EQU 201CH  ; the starting position of the rover's top left pixel
 ROVER_DIMENSIONS        EQU 0504H  ; length and height of the rover
 ROVER_COLOR             EQU 0F0FFH ; color used for the rover
-METEOR_START_POSITION   EQU 2C05H  ; the starting position of any meteors top left pixel
+ROVER_DELAY             EQU 4000H  ; delay used to limit the speed of the rover
+METEOR_START_POSITION   EQU 2CFBH  ; the starting position of any meteors top left pixel
 METEOR_GIANT_DIMENSIONS EQU 0505H  ; length and height of the giant meteor
 BAD_METEOR_COLOR        EQU 0FF00H ; color used for bad meteors
 
@@ -50,6 +51,7 @@ TRUE         EQU 0001H ; true is represented by the value one
 FALSE        EQU 0000H ; false is represented by the value zero
 NULL         EQU 0000H ; value equal to zero
 NEXT_WORD    EQU 0002H ; value that a word occupies at an address
+NEXT_BYTE    EQU 0001H ; value that a byte occupies at an address
 VAR_LIST_LEN EQU 0003H ; the length of the variables list
 
 ;=============================================================================
@@ -91,9 +93,9 @@ KEY_LIST:
 
 ;=============================================================================
 ; IMAGE TABLES:
-; - The first WORD represents the top left pixel of the image.
-; - The second WORD contains the dimensions (height and length) of canvas the
-;   image is painted on.
+; - The first WORD represents the top left pixel of the image. (X, Y)
+; - The second WORD contains the dimensions of the canvas the image is painted
+;   on. (height, length)
 ; - The third WORD contains the color to paint the image.
 ; - The rest of the WORD's are used to define the pattern of each line, each
 ;   one represents a line with 0's (uncolored pixels) and 1's (colored pixels).
@@ -103,6 +105,9 @@ ROVER:
 	WORD ROVER_START_POSITION
 	WORD ROVER_DIMENSIONS
 	WORD ROVER_COLOR
+	WORD ROVER_PATTERN
+
+ROVER_PATTERN:
 	WORD 2000H
 	WORD 0A800H
 	WORD 0F800H
@@ -112,6 +117,9 @@ BAD_METEOR_GIANT:
 	WORD METEOR_START_POSITION
 	WORD METEOR_GIANT_DIMENSIONS
 	WORD BAD_METEOR_COLOR
+	WORD BAD_METEOR_GIANT_PATTERN
+
+BAD_METEOR_GIANT_PATTERN:
 	WORD 8800H
 	WORD 0A800H
 	WORD 7000H
@@ -127,7 +135,7 @@ BAD_METEOR_GIANT:
 ;=============================================================================
 
 pile_Init:
-	TABLE 100H
+	STACK 100H
 SP_Start:
 
 ;=============================================================================
@@ -451,6 +459,7 @@ key_Action_5_Return:
 ; ----------------------------------------------------------------------------
 
 image_Draw:
+	PUSH R0
 	PUSH R1
 	PUSH R2
 	PUSH R3
@@ -459,26 +468,45 @@ image_Draw:
 	PUSH R6
 	PUSH R7
 	PUSH R8
+	PUSH R9
 
 	MOVB R1, [R0]      ; obtains the column of the object
-	ADD  R0, 0001H
+	ADD  R0, NEXT_BYTE
 	MOVB R2, [R0]      ; obtains the line where the object currently is
-	ADD  R0, 0001H
 
+	MOV  R9, 0080H     ; if the line is negative it extends the signal
+	AND  R9, R2        ; to fix the value in two's complement in 16 bits
+	JZ   image_Draw_NoExtend
+
+	MOV R9, 0FF00H
+	OR  R2, R9         ; extends the signal
+
+image_Draw_NoExtend:
+	ADD  R0, NEXT_BYTE
 	MOVB R3, [R0]      ; obtains the length of the object
 	ADD  R3, R1        ; calculates the first column to the right of the object that is free
-	ADD  R0, 0001H
+	ADD  R0, NEXT_BYTE
 	MOVB R4, [R0]      ; obtains the height of the object
 	ADD  R4, R2        ; calculates the first line below the object that is free
 
-	ADD  R0, 0001H
+	ADD  R0, NEXT_BYTE
 	MOV  R5, [R0]      ; obtains the color of the object
+
+	ADD  R0, NEXT_WORD
+	MOV  R6, [R0]      ; obtains the address that stores the color pattern
+	MOV  R0, R6
+	MOV  R8, [R0]      ; obtains the color pattern for the first line of the object
 
 	MOV  R6, R1        ; initializes the column counter
 	MOV  R7, R2        ; initializes the line counter
 
-	ADD  R0, NEXT_WORD
-	MOV  R8, [R0]      ; obtains the color pattern for the first line of the object
+image_Draw_VerifyBounds:
+	MOV  R9, MIN_LIN
+	CMP  R7, R9              ; checks if it's trying to paint a pixel
+	JLT  image_Draw_NextLine ; outside the bottom of the screen
+	MOV  R9, MAX_LIN
+	CMP  R7, R9              ; checks if it's trying to paint a pixel
+	JGT  image_Draw_Return   ; outside the top of the screen
 
 image_Draw_Loop:
 	SHL  R8, 1           ; checks if it needs to color the pixel by using the carry flag
@@ -487,14 +515,16 @@ image_Draw_Loop:
 	CMP  R6, R3          ; compares the column with the value of column plus length
 	JLT  image_Draw_Loop ; continues to draw up until all columns of the object are done
 
-	ADD  R7, 0001H       ; moves onto the next line
+image_Draw_NextLine:
+	ADD  R7, 0001H               ; moves onto the next line
 	ADD  R0, NEXT_WORD
-	MOV  R8, [R0]        ; obtains the color pattern for the new line
-	MOV  R6, R1          ; resets the value of the column
-	CMP  R7, R4          ; compares the line with the value of line plus height
-	JLT  image_Draw_Loop ; continues to draw up until all lines of the object are done
+	MOV  R8, [R0]                ; obtains the color pattern for the new line
+	MOV  R6, R1                  ; resets the value of the column
+	CMP  R7, R4                  ; compares the line with the value of line plus height
+	JLT  image_Draw_VerifyBounds ; continues to draw up until all lines of the object are done
 
 image_Draw_Return:
+	POP  R9
 	POP  R8
 	POP  R7
 	POP  R6
@@ -503,6 +533,7 @@ image_Draw_Return:
 	POP  R3
 	POP  R2
 	POP  R1
+	POP  R0
 	RET
 
 ; ----------------------------------------------------------------------------
@@ -519,9 +550,6 @@ pixel_Draw:
 	PUSH R1
 
 	JNC  pixel_Draw_Return  ; if the carry is not 1, pixel is not colored
-	MOV  R0, MAX_LIN
-	CMP  R7, R0             ; checks if it's trying to paint a pixel
-	JGE  pixel_Draw_Return  ; outside the bottom of the screen
 
 	MOV  R0, DEF_COL
 	MOV  [R0], R6         ; sets the column of the pixel
@@ -558,6 +586,7 @@ pixel_Draw_Return:
 
 rover_Move:
 	PUSH R0
+	PUSH R1
 	PUSH R2
 	PUSH R3
 
@@ -570,21 +599,19 @@ rover_Move:
 	CMP  R2, R3            ; compares updated column value with maximum column value
 	JGT  rover_Move_Return ; if it tries to go right but it can't fit in the screen, it exits
 
+	SHL  R1, 8         ; puts the new X coordinate of the rover in the right position
+	MOV  R2, [R0]      ; obtains the current position of the rover
+
 	CALL delay_Drawing ; controls the speed at which the rover moves
 	CALL image_Draw    ; it erases the current rover
-
-	SHL  R2, 8         ; puts the new X coordinate of the rover in the right position
-	MOV  R0, ROVER
-	MOV  R1, [R0]      ; obtains the current position of the rover
-	MOV  R3, 00FFH     ; constant to obtain the only the line of the rover
-	AND  R1, R3        ; clears column from position
-	OR   R1, R2        ; adds the new column in the right position
-	MOV  [R0], R1      ; updates the current position of the rover
+	ADD  R2, R1
+	MOV  [R0], R2      ; updates the current position of the rover
 	CALL image_Draw    ; paints new rover on the pixelscreen
 
 rover_Move_Return:
 	POP  R3
 	POP  R2
+	POP  R1
 	POP  R0
 	RET
 
@@ -616,6 +643,7 @@ rover_Reset:
 ; ----------------------------------------------------------------------------
 
 energy_Update:
+	PUSH R0
 	PUSH R1
 	PUSH R2
 	PUSH R3
@@ -648,6 +676,7 @@ energy_Update_Display:
 	POP  R3
 	POP  R2
 	POP  R1
+	POP  R0
 	RET
 
 ; ----------------------------------------------------------------------------
@@ -687,14 +716,15 @@ energy_Reset:
 
 meteor_Move:
 	PUSH R0
+	PUSH R1
 	PUSH R2
 	PUSH R3
 
 	MOV  R0, BAD_METEOR_GIANT
-	ADD  R0, 1
-	MOVB R2, [R0]        ; obtains the current line of the meteor
-	SUB  R0, 1
-	ADD  R2, 1           ; obtains the new line
+	MOV  R1, R0
+	ADD  R1, NEXT_BYTE
+	MOVB R2, [R1]        ; obtains the current line of the meteor
+	ADD  R2, 0001H       ; obtains the new line
 
 	CALL image_Draw      ; erases the old meteor
 
@@ -702,19 +732,15 @@ meteor_Move:
 	CMP  R2, R3          ; compares new line with maximum amount of lines
 	JGT  meteor_Move_Return
 
-	MOV  R0, BAD_METEOR_GIANT
 	MOV  R2, [R0]        ; obtains meteor's current position
 	ADD  R2, 0001H       ; actually updates the new line after verifying it's safe to do so
 	MOV  [R0], R2
 	CALL image_Draw      ; draws the meteor in the new position
 
-	MOV  R3, SOUND_PLAY
-	MOV  R2, 0
-	MOV  [R3], R2        ; makes the sound 0 play
-
 meteor_Move_Return:
 	POP  R3
 	POP  R2
+	POP  R1
 	POP  R0
 	RET
 
@@ -746,6 +772,7 @@ meteor_Reset:
 ; ----------------------------------------------------------------------------
 
 hextodec_Convert:
+	PUSH R1
 	PUSH R2
 	PUSH R3
 	PUSH R4
@@ -769,6 +796,7 @@ hextodec_Convert:
 	POP  R4
 	POP  R3
 	POP  R2
+	POP  R1
 	RET
 
 ; ----------------------------------------------------------------------------
