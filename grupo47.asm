@@ -59,6 +59,7 @@ PAUSE_RESUME     EQU 0006H ; value when the user unpauses the game
 GAME_OVER_ENERGY EQU 0008H ; value when the game ends because of low energy
 GAME_OVER_METEOR EQU 000AH ; value when the game ends because of a bad meteor collision
 GAME_END         EQU 000CH ; value when the user ends the game
+GAME_RESTART     EQU 000EH ; value when the user restarts the game
 
 TRUE         EQU 0001H ; true is represented by the value one
 FALSE        EQU 0000H ; false is represented by the value zero
@@ -339,8 +340,12 @@ game_InitFromPause:
 game_OverBecauseEnergy:
 	PUSH R0
 	DI
-	MOV  R0, 3 ; plays the game over (energy) video
-	JMP game_End_PlayVideo
+
+	MOV  R0, 3           
+	MOV [VIDEO_PLAY], R0        ; plays the game over (energy) video
+
+	POP R0
+	RET
 
 ; ----------------------------------------------------------------------------
 ; game_OverBecauseMeteor: Clears the screen and plays a video that indicates
@@ -350,8 +355,13 @@ game_OverBecauseEnergy:
 game_OverBecauseMeteor:
 	PUSH R0
 	DI
-	MOV  R0, 4 ; plays the game over (meteor) video
-	JMP game_End_PlayVideo
+	
+	MOV  R0, 4           
+	MOV [VIDEO_PLAY], R0        ; plays the game over (meteor) video
+
+	POP R0
+	RET
+	
 
 ; ----------------------------------------------------------------------------
 ; game_End: Plays the end screen of the game.
@@ -371,6 +381,19 @@ game_End_PlayVideo:
 	MOV  [GAME_STATE], R0
 
 	POP  R0
+	RET
+
+; ----------------------------------------------------------------------------
+; game_Restart: Plays a video that indicates that the game is restarting
+; ----------------------------------------------------------------------------
+
+game_Restart:
+	PUSH R0
+	
+	MOV R0, 6
+	MOV [VIDEO_PLAY], R0          ; plays the restart animation
+	
+	POP R0
 	RET
 
 ;=============================================================================
@@ -720,10 +743,10 @@ image_Draw_Return:
 pixel_Draw:
 	PUSH R1
 
-	JNC  pixel_Draw_Paint  ; if the carry is not 1, pixel is not colored
+	JNC  pixel_Draw_Paint      ; if the carry is not 1, pixel is not colored
 
-	MOV  [DEF_COL], R6     ; sets the column of the pixel
-	MOV  [DEF_LIN], R7     ; sets the line of the pixel
+	MOV  [DEF_COL], R6         ; sets the column of the pixel
+	MOV  [DEF_LIN], R7         ; sets the line of the pixel
 
 	MOV  R1, [DEF_PIXEL_READ]  ; obtains the state of the pixel
 	CMP  R1, NULL	           ; checks if it's not colored
@@ -748,19 +771,19 @@ rover_Move:
 	PUSH R2
 
 	MOV  R0, ROVER
-	MOV  R2, [R0]       ; obtains the current column of the rover
-	ADD  R2, R1         ; updates column value
+	MOV  R2, [R0]               ; obtains the current column of the rover
+	ADD  R2, R1                 ; updates column value
 
-	JN   rover_Move_Return ; if it tries to go left but it's on column 0, it exits
-	MOV  R1, MAX_COL_ROVER ; obtains the maximum column the rover can be at
-	CMP  R2, R1            ; compares updated column value with maximum column value
-	JGT  rover_Move_Return ; if it tries to go right but it can't fit in the screen, it exits
+	JN   rover_Move_Return  ; if it tries to go left but it's on column 0, it exits
+	MOV  R1, MAX_COL_ROVER  ; obtains the maximum column the rover can be at
+	CMP  R2, R1             ; compares updated column value with maximum column value
+	JGT  rover_Move_Return  ; if it tries to go right but it can't fit in the screen, it exits
 
-	CALL delay_Drawing ; controls the speed at which the rover moves
-	CALL image_Draw    ; it erases the current rover
+	CALL delay_Drawing           ; controls the speed at which the rover moves
+	CALL image_Draw              ; it erases the current rover
 
-	MOV  [R0], R2      ; updates the current position of the rover
-	CALL image_Draw    ; paints new rover on the pixelscreen
+	MOV  [R0], R2                ; updates the current position of the rover
+	CALL image_Draw              ; paints new rover on the pixelscreen
 
 rover_Move_Return:
 	POP  R2
@@ -793,7 +816,7 @@ energy_Handling:
 	JMP  energy_Handling_Display
 
 energy_Handling_MaxLim:
-	MOV  R1, ENERGY_HEX_MAX ; makes the value of the energy stuck at the maximum
+	MOV  R1, ENERGY_HEX_MAX   ; makes the value of the energy stuck at the maximum
 	JMP  energy_Handling_Display
 
 energy_Handling_MinLim:
@@ -803,10 +826,10 @@ energy_Handling_MinLim:
 	MOV  R1, ENERGY_HEX_MIN   ; makes the value of the energy stuck at the minimum
 
 energy_Handling_Display:
-	MOV  [ENERGY_HEX], R1 ; updates the new value of the energy
+	MOV  [ENERGY_HEX], R1     ; updates the new value of the energy
 
 	CALL hextodec_Convert
-	MOV  [DISPLAYS], R0   ; updates the value in the displays
+	MOV  [DISPLAYS], R0       ; updates the value in the displays
 	JMP  energy_Handling
 
 ;=============================================================================
