@@ -55,9 +55,10 @@ BAD_METEOR_COLOR        EQU 0FF00H ; color used for bad meteors
 IN_MENU          EQU 0000H ; value when the user is in the menu
 IN_GAME          EQU 0002H ; value when the user is in a game
 IN_PAUSE         EQU 0004H ; value when the user pauses the game
-IN_RESUME        EQU 0006H ; value when the user unpauses the game
+PAUSE_RESUME     EQU 0006H ; value when the user unpauses the game
 GAME_OVER_ENERGY EQU 0008H ; value when the game ends because of low energy
 GAME_OVER_METEOR EQU 000AH ; value when the game ends because of a bad meteor collision
+GAME_END         EQU 000CH ; value when the user ends the game
 
 TRUE         EQU 0001H ; true is represented by the value one
 FALSE        EQU 0000H ; false is represented by the value zero
@@ -78,6 +79,10 @@ GAME_STATE: WORD IN_MENU ; variable that stores the current game state
 KEY_PRESSED:  LOCK NULL  ; value of the key initially pressed on the current loop
 KEY_PRESSING: LOCK NULL  ; value of the key that is currently being held down
 
+ROVER_DIRECTION: LOCK NULL ; direction the rover is going to move in
+
+SHOOT_MISSILE: LOCK FALSE ; variable that unlocks the routine to shoot a missile
+
 ENERGY_HEX: WORD ENERGY_HEX_MAX ; stores the current energy value of the rover in hexadecimal
 
 MOVE_METEOR:  LOCK FALSE ; used by an interruption to indicate when to move the meteors
@@ -85,11 +90,13 @@ MOVE_MISSILE: LOCK FALSE ; used by an interruption to indicate when to move the 
 ENERGY_DRAIN: LOCK NULL  ; used by an interruption to indicate the amount of energy to decrease periodically
 
 VAR_LIST: ; list containing the addresses to all the program variables
+	WORD VAR_LIST_LEN
 	WORD GAME_LOCK
 	WORD GAME_STATE
-	WORD VAR_LIST_LEN
 	WORD KEY_PRESSED
 	WORD KEY_PRESSING
+	WORD ROVER_DIRECTION
+	WORD SHOOT_MISSILE
 	WORD MOVE_METEOR
 	WORD MOVE_MISSILE
 	WORD ENERGY_DRAIN
@@ -172,7 +179,7 @@ inte_Tab:
 
 main_LIFO:
 	STACK 100H
-SP_main:
+SP_Main:
 
 key_Sweeper_LIFO:
 	STACK 100H
@@ -223,11 +230,11 @@ init:
 	EI2
 	EI
 
-	CALL game_Handling
 	CALL key_Sweeper
 	CALL key_ActionsSingle
 	CALL key_ActionsContinuous
 	CALL meteor_Handling
+	CALL rover_Handling
 	CALL missile_Handling
 	CALL energy_Handling
 
@@ -260,10 +267,14 @@ game_Handling:
 ; ----------------------------------------------------------------------------
 
 game_Menu:
+	PUSH R0
+
 	CALL game_Reset
-	CALL energy_Reset
+
 	MOV  R0, 1
 	MOV  [VIDEO_CYCLE], R0 ; plays the starting menu video on a cycle
+
+	POP  R0
 	RET
 
 ; ----------------------------------------------------------------------------
@@ -274,8 +285,11 @@ game_Menu:
 game_Init:
 	PUSH R0
 
+	CALL game_Reset
+	CALL energy_Reset
+
 	MOV  R0, 1
-	MOV  [VIDEO_STOP], R0        ; stops the menu video
+	MOV  [VIDEO_STOP], R0        ; stops the previous video that was playing
 	MOV  R0, 2
 	MOV  [VIDEO_PLAY], R0        ; plays the game starting video
 	MOV  R0, 0
@@ -293,13 +307,12 @@ game_Init:
 
 game_Pause:
 	PUSH R0
-
-	MOV R0, 1
-	MOV [SELECT_FOREGROUND], R0  ; puts a pause button in the screen
-
-	POP R0
-
 	DI
+
+	MOV  R0, 1
+	MOV  [SELECT_FOREGROUND], R0  ; puts a pause button in the screen
+
+	POP  R0
 	RET
 
 ; ----------------------------------------------------------------------------
@@ -309,55 +322,35 @@ game_Pause:
 game_InitFromPause:
 	PUSH R0
 
-	MOV R0, 1
-	MOV [DELETE_FOREGROUND], R0  ; deletes the pause button from the screen
+	MOV  R0, 1
+	MOV  [DELETE_FOREGROUND], R0  ; deletes the pause button from the screen
 
-	POP R0
+	POP  R0
 
 	EI
 	RET
 
 ; ----------------------------------------------------------------------------
-; game_OverBecauseEnergy: Clears the screen and plays a video that indicates 
-; that the game is over due to the lack of energy of the rover
+; game_OverBecauseEnergy: Clears the screen and plays a video that indicates
+; that the game is over due to the lack of energy of the rover.
 ; ----------------------------------------------------------------------------
 
 game_OverBecauseEnergy:
 	PUSH R0
-	PUSH R1
-
-	MOV R1, 1
-	MOV [CLEAR_SCREEN], R1      ; deletes all pixels from the screen
-
-	MOV R0, 3 
-	MOV [VIDEO_CYCLE], R0       ; plays the game over (energy) video
-
-	POP R1
-	POP R0
-
 	DI
-	RET
+	MOV  R0, 3 ; plays the game over (energy) video
+	JMP game_End_PlayVideo
 
 ; ----------------------------------------------------------------------------
-; game_OverBecauseMeteor: Clears the screen and plays a video that indicates 
-; that the game is over due to a meteor crash
+; game_OverBecauseMeteor: Clears the screen and plays a video that indicates
+; that the game is over due to a meteor crash.
 ; ----------------------------------------------------------------------------
 
 game_OverBecauseMeteor:
 	PUSH R0
-	PUSH R1
-
-	MOV R1, 1
-	MOV [CLEAR_SCREEN], R1      ; deletes all pixels from the screen
-
-	MOV R0, 4 
-	MOV [VIDEO_CYCLE], R0       ; plays the game over (meteor) video
-
-	POP R1
-	POP R0
-
 	DI
-	RET
+	MOV  R0, 4 ; plays the game over (meteor) video
+	JMP game_End_PlayVideo
 
 ; ----------------------------------------------------------------------------
 ; game_End: Plays the end screen of the game.
@@ -365,11 +358,18 @@ game_OverBecauseMeteor:
 
 game_End:
 	PUSH R0
-	
-	MOV R0, 5
-	MOV [VIDEO_CYCLE], R0       ; plays the ending game video
-
 	DI
+	MOV  R0, 5 ; plays the ending game video
+	JMP game_End_PlayVideo
+
+game_End_PlayVideo:
+	CALL game_Reset
+
+	MOV  [VIDEO_CYCLE], R0       ; plays the actual video
+	MOV  R0, IN_MENU
+	MOV  [GAME_STATE], R0
+
+	POP  R0
 	RET
 
 ;=============================================================================
@@ -438,18 +438,193 @@ key_Convert_Save:
 key_CheckChange:
 	YIELD
 
-	MOV  [KEY_PRESSING], R5 ; indicates the number of the key that is being held down (00H - 0FH)
-
 	MOVB [R0], R2           ; looks at the line that was pressed previously
 	MOVB R3, [R1]           ; reads the state of key
 	AND  R3, R4             ; if the state is 0, then it's no longer being held down
-	JNZ  key_CheckChange
 
+	MOV  [KEY_PRESSING], R5 ; indicates the number of the key that is being held down (00H - 0FH)
+
+	JNZ  key_CheckChange
 	JMP  key_Sweeper
 
 ;=============================================================================
 ; KEY ACTIONS: Executes a command based on the key that is pressed.
 ;=============================================================================
+
+; ----------------------------------------------------------------------------
+; key_ActionsSingle: Executes a single key action per key press, and so it
+; does nothing when the key is being held down.
+; ----------------------------------------------------------------------------
+
+PROCESS SP_KeyActionsSingle
+key_ActionsSingle:
+	MOV  R0, [KEY_PRESSED] ; waits for a key
+	CALL key_Actions
+	JMP  key_ActionsSingle
+
+; ----------------------------------------------------------------------------
+; key_ActionsContinuous: Executes a single key action continuously, and so it
+; keeps executing it when the key is being held down.
+; ----------------------------------------------------------------------------
+
+PROCESS SP_KeyActionsContinuous
+key_ActionsContinuous:
+	MOV  R0, [KEY_PRESSING] ; waits for a key
+	CALL key_Actions
+	JMP  key_ActionsContinuous
+
+; ----------------------------------------------------------------------------
+; key_Actions: Executes a certain routine depending on the key that is
+; currently being held down.
+; ----------------------------------------------------------------------------
+
+key_Actions:
+	PUSH R0
+	PUSH R1
+	PUSH R2
+
+	SHL  R0, 1            ; each WORD takes two addresses so it multiplies the key by 2
+	MOV  R1, KEY_LIST
+	MOV  R2, [R1 + R0]    ; obtains the address of the routine to call
+	CALL R2
+
+	POP  R2
+	POP  R1
+	POP  R0
+	RET
+
+; ----------------------------------------------------------------------------
+; key_Action_0: Moves the rover to the left.
+; ----------------------------------------------------------------------------
+
+key_Action_0:
+	PUSH R0
+
+	MOV  R0, [GAME_STATE]
+	CMP  R0, IN_GAME
+	JNZ  key_Action_0_Return ; only moves the rover when it's in game
+
+	MOV  R0, -1              ; moves to the left
+	MOV  [ROVER_DIRECTION], R0
+
+key_Action_0_Return:
+	POP  R0
+	RET
+
+; ----------------------------------------------------------------------------
+; key_Action_1: Unlocks the variable that shoots a missile.
+; ----------------------------------------------------------------------------
+
+key_Action_1:
+	PUSH R0
+
+	MOV  R0, [GAME_STATE]
+	CMP  R0, IN_GAME
+	JNZ  key_Action_0_Return ; only shoot a missile when it's in game
+
+	MOV  [SHOOT_MISSILE], R0 ; shoots a missile (value of R0 doesn't matter)
+
+key_Action_1_Return:
+	POP  R0
+	RET
+
+; ----------------------------------------------------------------------------
+; key_Action_2: Moves the rover to the right.
+; ----------------------------------------------------------------------------
+
+key_Action_2:
+	PUSH R0
+
+	MOV  R0, [GAME_STATE]
+	CMP  R0, IN_GAME
+	JNZ  key_Action_0_Return ; only moves the rover when it's in game
+
+	MOV  R0, 1               ; moves to the right
+	MOV  [ROVER_DIRECTION], R0
+
+key_Action_2_Return:
+	POP  R0
+	RET
+
+; ----------------------------------------------------------------------------
+; key_Action_C: Starts a new game.
+; ----------------------------------------------------------------------------
+
+key_Action_C:
+	PUSH R0
+
+	MOV  R0, [GAME_STATE]
+	CMP  R0, IN_MENU
+	JNZ  key_Action_C_Return ; only starts a new game when it's on a menu
+
+	MOV  R0, IN_GAME
+	MOV  [GAME_LOCK], R0
+	MOV  [GAME_STATE], R0
+	CALL game_Init
+
+key_Action_C_Return:
+	POP  R0
+	RET
+
+; ----------------------------------------------------------------------------
+; key_Action_D: Pauses or unpauses the current game.
+; ----------------------------------------------------------------------------
+
+key_Action_D:
+	PUSH R0
+	PUSH R1
+
+	MOV  R0, [GAME_STATE]
+	CMP  R0, IN_GAME
+	JZ   key_Action_D_Pause   ; if it's in a game it pauses it
+	CMP  R0, IN_PAUSE
+	JZ   key_Action_D_Unpause ; if it's paused it unpauses the game
+	JMP  key_Action_D_Return  ; if the program is in any other state it does nothing
+
+key_Action_D_Pause:
+	MOV  R0, IN_PAUSE
+	MOV  [GAME_LOCK], R0
+	MOV  [GAME_STATE], R0
+	CALL game_InitFromPause
+	JMP  key_Action_D_Return
+
+key_Action_D_Unpause:
+	MOV  R1, PAUSE_RESUME
+	MOV  R0, IN_GAME
+	MOV  [GAME_LOCK], R1
+	MOV  [GAME_STATE], R0
+
+key_Action_D_Return:
+	POP  R1
+	POP  R0
+	RET
+
+; ----------------------------------------------------------------------------
+; key_Action_E: Ends the current game.
+; ----------------------------------------------------------------------------
+
+key_Action_E:
+	PUSH R0
+
+	MOV  R0, [GAME_STATE]
+	CMP  R0, IN_MENU
+	JZ   key_Action_E_Return ; only if it's in a menu it doesn't end a game
+
+	MOV  R0, GAME_END
+	MOV  [GAME_LOCK], R0
+	MOV  [GAME_STATE], R0
+	CALL game_End
+
+key_Action_E_Return:
+	POP  R0
+	RET
+
+; ----------------------------------------------------------------------------
+; key_Action_Placeholder: Routine that blocks certain keys from doing anything.
+; ----------------------------------------------------------------------------
+
+key_Action_PlaceHolder:
+	RET
 
 ;=============================================================================
 ; PIXEL SCREEN: Controls what gets pixelated onto the screen.
@@ -716,21 +891,6 @@ hextodec_Convert:
 	POP  R3
 	POP  R2
 	POP  R1
-	RET
-
-; ----------------------------------------------------------------------------
-; delay_Drawing; Controls the rate at which the program draws an image
-; ----------------------------------------------------------------------------
-
-delay_Drawing:
-	PUSH R0              ; value of the delay
-	MOV  R0, ROVER_DELAY ; obtains the value of the delay
-
-delay_Drawing_Loop:
-	SUB  R0, 1              ; subtracts one from the delay
-	JNZ  delay_Drawing_Loop ; continues until delay is zero
-
-	POP  R0
 	RET
 
 ;=============================================================================
