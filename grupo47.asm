@@ -111,6 +111,7 @@ GAME_STATE_LIST: ; list containing all the possible game states
 	WORD game_OverBecauseEnergy
 	WORD game_OverBecauseMeteor
 	WORD game_End
+	WORD game_Restart
 
 KEY_LIST: ; list containing all the key actions of the game
 	WORD key_Action_0
