@@ -33,7 +33,9 @@ DEF_COL           EQU 600CH ; address of the command to define a column
 DEF_PIXEL_WRITE   EQU 6012H ; address of the command to write a pixel
 DEF_PIXEL_READ    EQU 6014H ; address of the command to read a pixel's state
 CLEAR_SCREEN      EQU 6002H ; address of the command to clear the screen
-SELECT_BACKGROUND EQU 6042H ; address of the command to select a backround
+SELECT_BACKGROUND EQU 6042H ; address of the command to select a background
+SELECT_FOREGROUND EQU 6046H ; address of the command to select a foreground
+DELETE_FOREGROUND EQU 6044H ; address of the command to delete the foreground
 SOUND_PLAY        EQU 605AH ; address of the command to play a sound
 VIDEO_PLAY        EQU 605AH ; address of the command to play a video
 VIDEO_CYCLE       EQU 605CH ; address of the command to play a video on repeat
@@ -290,6 +292,13 @@ game_Init:
 ; ----------------------------------------------------------------------------
 
 game_Pause:
+	PUSH R0
+
+	MOV R0, 1
+	MOV [SELECT_FOREGROUND], R0  ; puts a pause button in the screen
+
+	POP R0
+
 	DI
 	RET
 
@@ -298,6 +307,13 @@ game_Pause:
 ; ----------------------------------------------------------------------------
 
 game_InitFromPause:
+	PUSH R0
+
+	MOV R0, 1
+	MOV [DELETE_FOREGROUND], R0  ; deletes the pause button from the screen
+
+	POP R0
+
 	EI
 	RET
 
@@ -306,6 +322,18 @@ game_InitFromPause:
 ; ----------------------------------------------------------------------------
 
 game_OverBecauseEnergy:
+	PUSH R0
+	PUSH R1
+
+	MOV R1, 1
+	MOV [CLEAR_SCREEN], R1      ; deletes all pixels from the screen
+
+	MOV R0, 3 
+	MOV [VIDEO_CYCLE], R0       ; plays the game over (energy) video
+
+	POP R1
+	POP R0
+
 	DI
 	RET
 
@@ -314,6 +342,18 @@ game_OverBecauseEnergy:
 ; ----------------------------------------------------------------------------
 
 game_OverBecauseMeteor:
+	PUSH R0
+	PUSH R1
+
+	MOV R1, 1
+	MOV [CLEAR_SCREEN], R1      ; deletes all pixels from the screen
+
+	MOV R0, 4 
+	MOV [VIDEO_CYCLE], R0       ; plays the game over (meteor) video
+
+	POP R1
+	POP R0
+
 	DI
 	RET
 
@@ -322,6 +362,11 @@ game_OverBecauseMeteor:
 ; ----------------------------------------------------------------------------
 
 game_End:
+	PUSH R0
+	
+	MOV R0, 5
+	MOV [VIDEO_CYCLE], R0       ; plays the ending game video
+
 	DI
 	RET
 
