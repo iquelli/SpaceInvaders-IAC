@@ -288,7 +288,7 @@ game_Init:
 	RET
 
 ; ----------------------------------------------------------------------------
-; game_Pause:
+; game_Pause: Pauses the game.
 ; ----------------------------------------------------------------------------
 
 game_Pause:
@@ -303,7 +303,7 @@ game_Pause:
 	RET
 
 ; ----------------------------------------------------------------------------
-; game_InitFromPause:
+; game_InitFromPause: Resumes the game.
 ; ----------------------------------------------------------------------------
 
 game_InitFromPause:
@@ -318,7 +318,8 @@ game_InitFromPause:
 	RET
 
 ; ----------------------------------------------------------------------------
-; game_OverBecauseEnergy:
+; game_OverBecauseEnergy: Clears the screen and plays a video that indicates 
+; that the game is over due to the lack of energy of the rover
 ; ----------------------------------------------------------------------------
 
 game_OverBecauseEnergy:
@@ -338,7 +339,8 @@ game_OverBecauseEnergy:
 	RET
 
 ; ----------------------------------------------------------------------------
-; game_OverBecauseMeteor:
+; game_OverBecauseMeteor: Clears the screen and plays a video that indicates 
+; that the game is over due to a meteor crash
 ; ----------------------------------------------------------------------------
 
 game_OverBecauseMeteor:
@@ -358,7 +360,7 @@ game_OverBecauseMeteor:
 	RET
 
 ; ----------------------------------------------------------------------------
-; game_End:
+; game_End: Plays the end screen of the game.
 ; ----------------------------------------------------------------------------
 
 game_End:
