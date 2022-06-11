@@ -83,7 +83,8 @@ ROVER_DIRECTION: LOCK NULL ; direction the rover is going to move in
 
 SHOOT_MISSILE: LOCK FALSE ; variable that unlocks the routine to shoot a missile
 
-ENERGY_HEX: WORD ENERGY_HEX_MAX ; stores the current energy value of the rover in hexadecimal
+ENERGY_CHANGE: LOCK NULL           ; the value to increase or decrease the energy of the rover
+ENERGY_HEX:    WORD ENERGY_HEX_MAX ; stores the current energy value of the rover in hexadecimal
 
 MOVE_METEOR:  LOCK FALSE ; used by an interruption to indicate when to move the meteors
 MOVE_MISSILE: LOCK FALSE ; used by an interruption to indicate when to move the missile
@@ -778,38 +779,35 @@ rover_Move_Return:
 ; - R0 -> value (%) to increase/decrease the energy percentage
 ; ----------------------------------------------------------------------------
 
-energy_Update:
-	PUSH R0
-	PUSH R1
-	PUSH R2
+PROCESS SP_EnergyHandling
+energy_Handling:
+	MOV  R0, [ENERGY_CHANGE] ; gets the value to increase/decrease the energy of the rover
+	MOV  R1, [ENERGY_HEX]    ; obtains the current energy
+	ADD  R1, R0              ; adds the current energy with the amount to increase/decrease
 
-	MOV  R1, [ENERGY_HEX] ; obtains the current energy
-	ADD  R1, R0           ; adds the current energy with the amount to increase/decrease
+	JN   energy_Handling_MinLim ; if the energy becomes negative it becomes stuck at 0
+	MOV  R2, ENERGY_HEX_MAX     ; obtains the maximum value of energy
+	CMP  R1, R2                 ; compares current energy value with maximum energy value
+	JGT  energy_Handling_MaxLim ; when the energy exceeds the limit it also becomes stuck at the maximum
 
-	JN   energy_Update_MinLim ; if the energy becomes negative it becomes stuck at 0
-	MOV  R2, ENERGY_HEX_MAX   ; obtains the maximum value of energy
-	CMP  R1, R2               ; compares current energy value with maximum energy value
-	JGT  energy_Update_MaxLim ; when the energy exceeds the limit it also becomes stuck at the maximum
+	JMP  energy_Handling_Display
 
-	JMP  energy_Update_Display
-
-energy_Update_MaxLim:
+energy_Handling_MaxLim:
 	MOV  R1, ENERGY_HEX_MAX ; makes the value of the energy stuck at the maximum
-	JMP  energy_Update_Display
+	JMP  energy_Handling_Display
 
-energy_Update_MinLim:
-	MOV  R1, ENERGY_HEX_MIN ; makes the value of the energy stuck at the minimum
+energy_Handling_MinLim:
+	MOV  R2, GAME_OVER_ENERGY ; the rover reached the end of it's time
+	MOV  [GAME_LOCK], R2
+	MOV  [GAME_STATE], R2
+	MOV  R1, ENERGY_HEX_MIN   ; makes the value of the energy stuck at the minimum
 
-energy_Update_Display:
+energy_Handling_Display:
 	MOV  [ENERGY_HEX], R1 ; updates the new value of the energy
 
 	CALL hextodec_Convert
 	MOV  [DISPLAYS], R0   ; updates the value in the displays
-
-	POP  R2
-	POP  R1
-	POP  R0
-	RET
+	JMP  energy_Handling
 
 ;=============================================================================
 ; MISSILE:
@@ -1025,7 +1023,7 @@ inte_EnergyDepletion:
 	PUSH R0
 
 	MOV  R0, ENERGY_MOVEMENT_CONSUMPTION
-	MOV  [ENERGY_DRAIN], R0 ; depleats 5% of the rover's energy every 3 seconds
+	MOV  [ENERGY_CHANGE], R0 ; depleats 5% of the rover's energy every 3 seconds
 
 	POP  R0
 	RFE
