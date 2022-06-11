@@ -34,7 +34,10 @@ DEF_PIXEL_WRITE   EQU 6012H ; address of the command to write a pixel
 DEF_PIXEL_READ    EQU 6014H ; address of the command to read a pixel's state
 CLEAR_SCREEN      EQU 6002H ; address of the command to clear the screen
 SELECT_BACKGROUND EQU 6042H ; address of the command to select a backround
-SOUND_PLAY        EQU 605AH ; address of the command to play the sound
+SOUND_PLAY        EQU 605AH ; address of the command to play a sound
+VIDEO_PLAY        EQU 605AH ; address of the command to play a video
+VIDEO_CYCLE       EQU 605CH ; address of the command to play a video on repeat
+VIDEO_STOP        EQU 6066H ; address of the command to make a video stop
 
 MAX_LIN                 EQU 0020H  ; the first line we can't paint at
 MAX_COL_ROVER           EQU 003BH  ; maximum column the rover can be at
@@ -46,6 +49,13 @@ ROVER_DELAY             EQU 4000H  ; delay used to limit the speed of the rover
 METEOR_START_POS_Y      EQU 0FFFBH ; the starting Y position of any meteors top left pixel
 METEOR_GIANT_DIMENSIONS EQU 0505H  ; length and height of the giant meteor
 BAD_METEOR_COLOR        EQU 0FF00H ; color used for bad meteors
+
+IN_MENU          EQU 0000H ; value when the user is in the menu
+IN_GAME          EQU 0002H ; value when the user is in a game
+IN_PAUSE         EQU 0004H ; value when the user pauses the game
+IN_RESUME        EQU 0006H ; value when the user unpauses the game
+GAME_OVER_ENERGY EQU 0008H ; value when the game ends because of low energy
+GAME_OVER_METEOR EQU 000AH ; value when the game ends because of a bad meteor collision
 
 TRUE         EQU 0001H ; true is represented by the value one
 FALSE        EQU 0000H ; false is represented by the value zero
@@ -60,26 +70,62 @@ VAR_LIST_LEN EQU 0003H ; the length of the variables list
 
 PLACE 1000H
 
-KEY_PRESSED:  LOCK NULL  ; value of the key pressed on a previous loop
-KEY_PRESSING: LOCK NULL  ; value of the key that is currently being pressed
+GAME_LOCK:  LOCK IN_MENU ; variable that locks/unlocks the game states for the game handling
+GAME_STATE: WORD IN_MENU ; variable that stores the current game state
+
+KEY_PRESSED:  LOCK NULL  ; value of the key initially pressed on the current loop
+KEY_PRESSING: LOCK NULL  ; value of the key that is currently being held down
 
 ENERGY_HEX: WORD ENERGY_HEX_MAX ; stores the current energy value of the rover in hexadecimal
 
-MOVE_METEOR:  LOCK FALSE
-MOVE_MISSILE: LOCK FALSE
-ENERGY_DRAIN: LOCK FALSE
+MOVE_METEOR:  LOCK FALSE ; used by an interruption to indicate when to move the meteors
+MOVE_MISSILE: LOCK FALSE ; used by an interruption to indicate when to move the missile
+ENERGY_DRAIN: LOCK NULL  ; used by an interruption to indicate the amount of energy to decrease periodically
 
-VAR_LIST:             ; list containing the addresses
-	WORD VAR_LIST_LEN ; to all the program variables
+VAR_LIST: ; list containing the addresses to all the program variables
+	WORD GAME_LOCK
+	WORD GAME_STATE
+	WORD VAR_LIST_LEN
 	WORD KEY_PRESSED
 	WORD KEY_PRESSING
+	WORD MOVE_METEOR
+	WORD MOVE_MISSILE
+	WORD ENERGY_DRAIN
+
+GAME_STATE_LIST: ; list containing all the possible game states
+	WORD game_Menu
+	WORD game_Init
+	WORD game_Pause
+	WORD game_InitFromPause
+	WORD game_OverBecauseEnergy
+	WORD game_OverBecauseMeteor
+	WORD game_End
+
+KEY_LIST: ; list containing all the key actions of the game
+	WORD key_Action_0
+	WORD key_Action_1
+	WORD key_Action_2
+	WORD key_Action_PlaceHolder
+	WORD key_Action_PlaceHolder
+	WORD key_Action_PlaceHolder
+	WORD key_Action_PlaceHolder
+	WORD key_Action_PlaceHolder
+	WORD key_Action_PlaceHolder
+	WORD key_Action_PlaceHolder
+	WORD key_Action_PlaceHolder
+	WORD key_Action_PlaceHolder
+	WORD key_Action_C
+	WORD key_Action_D
+	WORD key_Action_E
+	WORD key_Action_PlaceHolder
 
 ;=============================================================================
 ; IMAGE TABLES:
-; - The first WORD represents the top left pixel of the image. (X, Y)
-; - The second WORD contains the dimensions of the canvas the image is painted
+; - The first two WORD's represents the top left pixel of the image. (X, Y)
+; - The third WORD leads to the information of the object.
+; - The fourth WORD contains the dimensions of the canvas the image is painted
 ;   on. (height, length)
-; - The third WORD contains the color to paint the image.
+; - The fifth WORD contains the color to paint the image.
 ; - The rest of the WORD's are used to define the pattern of each line, each
 ;   one represents a line with 0's (uncolored pixels) and 1's (colored pixels).
 ;=============================================================================
@@ -119,16 +165,40 @@ inte_Tab:
 	WORD inte_EnergyDepletion
 
 ;=============================================================================
-; PROCESSES FIFO'S:
+; PROCESSES LIFO'S:
 ;=============================================================================
 
-main_FIFO:
+main_LIFO:
 	STACK 100H
-SP_Main:
+SP_main:
 
-key_FIFO:
+key_Sweeper_LIFO:
 	STACK 100H
-SP_Key:
+SP_KeySweeper:
+
+key_ActionsSingle_LIFO:
+	STACK 100H
+SP_KeyActionsSingle:
+
+key_ActionsContinuous_LIFO:
+	STACK 100H
+SP_KeyActionsContinuous:
+
+meteor_Handling_LIFO:
+	STACK 100H
+SP_MeteorHandling:
+
+rover_Handling_LIFO:
+	STACK 100H
+SP_RoverHandling:
+
+missile_Handling_LIFO:
+	STACK 100H
+SP_MissileHandling:
+
+energy_Handling_LIFO:
+	STACK 100H
+SP_EnergyHandling:
 
 ;=============================================================================
 ; MAIN: The starting point of the program.
@@ -137,29 +207,136 @@ SP_Key:
 PLACE 0000H
 
 ; ----------------------------------------------------------------------------
-; main: Initializes the program.
+; init: Initializes the program and the processes and starts the initial menu.
 ; ----------------------------------------------------------------------------
 
-main:
+init:
 	MOV  SP, SP_Main   ; initializes the stack pointer
 	MOV  BTE, inte_Tab ; initializes the interruption table
+
+	CALL game_Menu
+
 	EI0
 	EI1
 	EI2
 	EI
 
+	CALL game_Handling
 	CALL key_Sweeper
+	CALL key_ActionsSingle
+	CALL key_ActionsContinuous
+	CALL meteor_Handling
+	CALL missile_Handling
+	CALL energy_Handling
+
+; ----------------------------------------------------------------------------
+; main: Starts the main loop of the program.
+; ----------------------------------------------------------------------------
+
+main:
+	YIELD
+
+;=============================================================================
+; GAME STATES: Controls the current state of the game.
+;=============================================================================
+
+; ----------------------------------------------------------------------------
+; game_Handling: Reads from a locked variable the state of a game and when it
+; changes it calls the correct routine.
+; ----------------------------------------------------------------------------
+
+game_Handling:
+	MOV  R0, [GAME_LOCK]     ; locks the process until the game state changes
+	MOV  R1, GAME_STATE_LIST
+	MOV  R2, [R1 + R0]       ; gets the right routine to call
+	CALL R2                  ; calls the routine needed for the change in the game state
+	JMP  main                ; waits for another change in the game state change
+
+; ----------------------------------------------------------------------------
+; game_Menu: Resets the information about previous games and shows the
+; starting menu video.
+; ----------------------------------------------------------------------------
+
+game_Menu:
+	CALL game_Reset
+	CALL energy_Reset
+	MOV  R0, 1
+	MOV  [VIDEO_CYCLE], R0 ; plays the starting menu video on a cycle
+	RET
+
+; ----------------------------------------------------------------------------
+; game_Init: Initializes the game by playing the correct video and drawing the
+; starting object.
+; ----------------------------------------------------------------------------
+
+game_Init:
+	PUSH R0
+
+	MOV  R0, 1
+	MOV  [VIDEO_STOP], R0        ; stops the menu video
+	MOV  R0, 2
+	MOV  [VIDEO_PLAY], R0        ; plays the game starting video
+	MOV  R0, 0
+	MOV  [SELECT_BACKGROUND], R0 ; selects the starting background
+
+	MOV  R0, ROVER
+	CALL image_Draw              ; draws the starting rover
+
+	POP  R0
+	RET
+
+; ----------------------------------------------------------------------------
+; game_Pause:
+; ----------------------------------------------------------------------------
+
+game_Pause:
+	DI
+	RET
+
+; ----------------------------------------------------------------------------
+; game_InitFromPause:
+; ----------------------------------------------------------------------------
+
+game_InitFromPause:
+	EI
+	RET
+
+; ----------------------------------------------------------------------------
+; game_OverBecauseEnergy:
+; ----------------------------------------------------------------------------
+
+game_OverBecauseEnergy:
+	DI
+	RET
+
+; ----------------------------------------------------------------------------
+; game_OverBecauseMeteor:
+; ----------------------------------------------------------------------------
+
+game_OverBecauseMeteor:
+	DI
+	RET
+
+; ----------------------------------------------------------------------------
+; game_End:
+; ----------------------------------------------------------------------------
+
+game_End:
+	DI
+	RET
 
 ;=============================================================================
 ; KEY HANDLING: Reads input from a keypad that the program uses to control the
 ; game.
 ;=============================================================================
 
-PROCESS SP_Key
+PROCESS SP_KeySweeper
 
 ; ----------------------------------------------------------------------------
-; key_Sweeper: Does a full swipe on the keypad to check the key the user is
-; pressing and saves it.
+; key_Sweeper: Swipes the keypad waiting for the user to press a key. When it
+; happens it exits with the line and column of the key stored.
+; R2 -> line of the key being pressed
+; R3 -> column of the key being pressed
 ; ----------------------------------------------------------------------------
 
 key_Sweeper:
@@ -169,27 +346,27 @@ key_Sweeper:
 	MOV  R4, 000FH
 
 key_Sweeper_Wait:
-	WAIT
+	WAIT                  ; makes the processor sleep if all the other processes are locked
 
 	MOVB [R0], R2         ; sends the value of the line currently being analysed to the line peripheral
 	MOVB R3, [R1]         ; saves the value of the column from the peripheral
 	AND  R3, R4           ; obtains only the bits 0-3 from the column peripheral
-	JNZ  key_Convert
+	JNZ  key_Convert      ; if the key is pressed it continues down the process
 
-	SHR  R2, 1            ; moves on to the next line of the keypad
-	JNZ  key_Sweeper_Wait ; it only swipes the keypad once
-	MOV  R2, LIN_MASK
-	JMP  key_Sweeper_Wait
+	SHR  R2, 1            ; moves onto the next line of the keypad
+	JNZ  key_Sweeper_Wait
+	MOV  R2, LIN_MASK     ; when one sweep is done it resets the line with
+	JMP  key_Sweeper_Wait ; the line mask and jumps to the beginning
 
 ; ----------------------------------------------------------------------------
 ; key_Convert: Converts the arbitrary column and line values into the
-; actual key the user is pressing. If no key is being pressed then it's as if
-; the user is pressing a 17th imaginary key.
+; actual key the user is pressing.
+; R5 -> key that is being pressed, now converted into hexadecimal
 ; ----------------------------------------------------------------------------
 
 key_Convert:
 	MOV  R5, 0000H          ; initializes the key counter at 0
-	MOV  R6, R2
+	MOV  R6, R2             ; backs up the value of the line into R6
 
 key_Convert_Lin:
 	SHR  R6, 1              ; obtains an actual number for the line of the key
@@ -204,49 +381,28 @@ key_Convert_Col:
 	JMP  key_Convert_Col
 
 key_Convert_Save:
-	MOV  [KEY_PRESSED], R5 ; saves the number of the key that is pressed (0H - FH)
+	MOV  [KEY_PRESSED], R5  ; indicates the number of the key that is pressed (00H - 0FH)
 
 ; ----------------------------------------------------------------------------
-; key_CheckChange: Checks if the user is holding down a key or if it's a new
-; key all together.
+; key_CheckChange: Waits until no key is being held down, meanwhile it
+; indicates the key that is being held down.
 ; ----------------------------------------------------------------------------
 
 key_CheckChange:
 	YIELD
 
-	MOV  [KEY_PRESSING], R5
+	MOV  [KEY_PRESSING], R5 ; indicates the number of the key that is being held down (00H - 0FH)
 
-	MOVB [R0], R2
-	MOVB R3, [R1]
-	AND  R3, R4
+	MOVB [R0], R2           ; looks at the line that was pressed previously
+	MOVB R3, [R1]           ; reads the state of key
+	AND  R3, R4             ; if the state is 0, then it's no longer being held down
 	JNZ  key_CheckChange
 
 	JMP  key_Sweeper
 
 ;=============================================================================
-; GAME STATES: Controls the current state of the game.
+; KEY ACTIONS: Executes a command based on the key that is pressed.
 ;=============================================================================
-
-; ----------------------------------------------------------------------------
-; game_Init: Initializes the game by resetting everything and drawing the
-; starting objects.
-; ----------------------------------------------------------------------------
-
-game_Init:
-	PUSH R0
-
-	CALL game_Reset
-	CALL energy_Reset
-	MOV  R0, 0
-	MOV  [SELECT_BACKGROUND], R0 ; selects the starting background
-
-	MOV  R0, BAD_METEOR_GIANT
-	CALL image_Draw           ; draws the starting meteor
-	MOV  R0, ROVER
-	CALL image_Draw           ; draws the starting rover
-
-	POP  R0
-	RET
 
 ;=============================================================================
 ; PIXEL SCREEN: Controls what gets pixelated onto the screen.
@@ -443,51 +599,38 @@ energy_Update_Display:
 ;=============================================================================
 
 ; ----------------------------------------------------------------------------
-; key_Action_0: Moves the rover to the left.
-; ----------------------------------------------------------------------------
-
-key_Action_0:
-	PUSH R1
-
-	MOV  R1, -1     ; subtracts one from the column of the rover,
-	CALL rover_Move ; moving it to the left
-
-	POP  R1
-	RET
-
-; ----------------------------------------------------------------------------
-; key_Action_2: Moves the rover to the right.
-; ----------------------------------------------------------------------------
-
-key_Action_2:
-	PUSH R1
-
-	MOV  R1, 1      ; adds one to the column of the rover,
-	CALL rover_Move ; moving it to the right
-
-	POP  R1
-	RET
-; ----------------------------------------------------------------------------
 ; meteor_Move: Moves the meteor one line for each press of a certain key
 ; ----------------------------------------------------------------------------
 
-meteor_Move_:
+meteor_Move:
+	PUSH R0
+	PUSH R1
+	PUSH R2
+	PUSH R3
+
 	MOV  R0, BAD_METEOR_GIANT
 	MOV  R1, R0
-	ADD  R1, NEXT_WORD
-	MOV  R2, [R1]        ; obtains the current line of the meteor
+	ADD  R1, NEXT_BYTE
+	MOVB R2, [R1]        ; obtains the current line of the meteor
 	ADD  R2, 0001H       ; obtains the new line
+
+	CALL image_Draw      ; erases the old meteor
 
 	MOV  R3, MAX_LIN
 	CMP  R2, R3          ; compares new line with maximum amount of lines
 	JGT  meteor_Move_Return
 
-	CALL image_Draw      ; erases the old meteor
-
-	MOV  [R1], R2        ; actually updates the new line after verifying it's safe to do so
+	MOV  R2, [R0]        ; obtains meteor's current position
+	ADD  R2, 0001H       ; actually updates the new line after verifying it's safe to do so
+	MOV  [R0], R2
 	CALL image_Draw      ; draws the meteor in the new position
 
 meteor_Move_Return:
+	POP  R3
+	POP  R2
+	POP  R1
+	POP  R0
+	RET
 
 ;=============================================================================
 ; MISCELLANIOUS: various routines that don't fit a specific category.
@@ -568,24 +711,6 @@ rover_Reset:
 	RET
 
 ; ----------------------------------------------------------------------------
-; energy_Reset: Resets the energy back to 100% when a new game begins.
-; ----------------------------------------------------------------------------
-
-energy_Reset:
-	PUSH R0
-	PUSH R1
-
-	MOV  R1, ENERGY_HEX_MAX
-	MOV  [ENERGY_HEX], R1 ; resets the current energy to maximum energy
-
-	CALL hextodec_Convert
-	MOV  [DISPLAYS], R0   ; resets the value in the display in decimal form
-
-	POP  R1
-	POP  R0
-	RET
-
-; ----------------------------------------------------------------------------
 ; meteor_Reset: Resets the meteor's starting position.
 ; ----------------------------------------------------------------------------
 
@@ -644,18 +769,56 @@ game_Reset:
 	MOV  [CLEAR_SCREEN], R0 ; clears all the pixels on the screen
 	RET
 
+; ----------------------------------------------------------------------------
+; energy_Reset: Resets the energy back to 100% when a new game begins.
+; ----------------------------------------------------------------------------
+
+energy_Reset:
+	PUSH R0
+	PUSH R1
+
+	MOV  R1, ENERGY_HEX_MAX
+	MOV  [ENERGY_HEX], R1 ; resets the current energy to maximum energy
+
+	CALL hextodec_Convert
+	MOV  [DISPLAYS], R0   ; resets the value in the display in decimal form
+
+	POP  R1
+	POP  R0
+	RET
+
 ;=============================================================================
 ; INTERRUPTION HANDLING:
 ;=============================================================================
+
+; ----------------------------------------------------------------------------
+; inte_MoveMeteor: Interruption that indicates when the meteors should move
+; (400 milliseconds).
+; ----------------------------------------------------------------------------
 
 inte_MoveMeteor:
 	MOV [MOVE_METEOR], R0
 	RFE
 
+; ----------------------------------------------------------------------------
+; inte_MoveMissile: Interruption that indicates when the missile should move
+; (200 milliseconds).
+; ----------------------------------------------------------------------------
+
 inte_MoveMissile:
 	MOV [MOVE_MISSILE], R0
 	RFE
 
+; ----------------------------------------------------------------------------
+; inte_EnergyDepletion: Interruption that indicates when the rover should lose
+; 5% of it's energy by moving around (3 seconds).
+; ----------------------------------------------------------------------------
+
 inte_EnergyDepletion:
-	MOV [ENERGY_DRAIN], R0
+	PUSH R0
+
+	MOV  R0, ENERGY_MOVEMENT_CONSUMPTION
+	MOV  [ENERGY_DRAIN], R0 ; depleats 5% of the rover's energy every 3 seconds
+
+	POP  R0
 	RFE
