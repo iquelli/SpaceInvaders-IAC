@@ -40,7 +40,8 @@ DELETE_FOREGROUND EQU 6044H  ; address of the command to delete the foreground
 SOUND_PLAY        EQU 605AH  ; address of the command to play a sound
 VIDEO_PLAY        EQU 605AH  ; address of the command to play a video
 VIDEO_CYCLE       EQU 605CH  ; address of the command to play a video on repeat
-VIDEO_STOP        EQU 6068H  ; address of the command to make all videos stop
+VIDEO_STOP        EQU 6068H  ; address of the command to make all videos stop\
+VIDEO_STATE       EQU 6052H  ; address of the command to obtain the state of a vide
 
 MAX_LIN                 EQU 0020H   ; the first line we can't paint at
 MAX_COL_ROVER           EQU 003BH   ; maximum column the rover can be at
@@ -53,7 +54,7 @@ METEOR_START_POS_Y      EQU 0FFFBH  ; the starting Y position of any meteors top
 METEOR_GIANT_DIMENSIONS EQU 0505H   ; length and height of the giant meteor
 BAD_METEOR_COLOR        EQU 0FF00H  ; color used for bad meteors
 MISSILE_DIMENSIONS      EQU 0101H   ; length and height of the missile
-MISSILE_COLOR			EQU 0F0F0H  ; color of the missile
+MISSILE_COLOR		EQU 0F0F0H  ; color of the missile
 MAX_MISSILE_LINE        EQU 0011H   ; maximum line the missile can go
 
 IN_MENU    EQU 0000H  ; value when the user is in a menu
@@ -266,20 +267,37 @@ game_Init:
 	CALL game_Reset
 	CALL energy_Reset
 
-	MOV  R0, IN_GAME              ; changes the current game state to in game
-	MOV  [GAME_STATE], R0         ; because a new game is about to begin
-
 	MOV  [VIDEO_STOP], R0         ; stops the previous video that was playing (value of R0 doesn't matter)
 	MOV  R0, 2
 	MOV  [VIDEO_PLAY], R0         ; plays the game starting video
+	
+	CALL wait_Animation
 
 	MOV  R0, 0
 	MOV  [SELECT_BACKGROUND], R0  ; selects the starting background
 	MOV  R0, ROVER
 	CALL image_Draw               ; draws the starting rover
+	
+	MOV  R0, IN_GAME              ; changes the current game state to in game
+	MOV  [GAME_STATE], R0         ; because a new game is about to begin
 
 game_Init_Return:
 	POP  R0
+	RET
+
+wait_Animation:
+	PUSH R1
+	PUSH R2
+
+wait_AnimationCycle:
+	MOV R1, [VIDEO_STATE]          ; obtains the state of the video
+	MOV R2, 0000H
+	
+	CMP R1, R2                     ; checks if the animation has stopped playing
+	JNZ wait_AnimationCycle        ; keeps going up until the animation has ended
+	
+	POP R2
+	POP R1
 	RET
 
 ; ----------------------------------------------------------------------------
@@ -723,13 +741,13 @@ PROCESS SP_EnergyHandling
 energy_Handling:
 	WAIT
 
-	MOV  R0, [ENERGY_CHANGE]     ; gets the value to increase/decrease the energy of the rover
-	MOV  R1, [ENERGY_HEX]        ; obtains the current energy
-	ADD  R1, R0                  ; adds the current energy with the amount to increase/decrease
-
 	MOV  R0, [GAME_STATE]
 	CMP  R0, IN_GAME
 	JNZ  energy_Handling         ; if there is no elapsed game it doesn't update the energy
+	
+	MOV  R0, [ENERGY_CHANGE]     ; gets the value to increase/decrease the energy of the rover
+	MOV  R1, [ENERGY_HEX]        ; obtains the current energy
+	ADD  R1, R0                  ; adds the current energy with the amount to increase/decrease
 
 	CMP  R1, NULL
 	JLE  energy_Handling_MinLim  ; if the energy becomes negative it becomes stuck at 0
