@@ -52,11 +52,9 @@ ROVER_DELAY             EQU 4000H   ; delay used to limit the speed of the rover
 METEOR_START_POS_Y      EQU 0FFFBH  ; the starting Y position of any meteors top left pixel
 METEOR_GIANT_DIMENSIONS EQU 0505H   ; length and height of the giant meteor
 BAD_METEOR_COLOR        EQU 0FF00H  ; color used for bad meteors
-MISSILE_START_POS_X     EQU 0022H  ; the starting X position of the missile
-MISSILE_START_POS_Y     EQU 001BH  ; the starting Y position of the missile
-MISSILE_DIMENSIONS      EQU 0101H  ; length and height of the missile
-MISSILE_COLOR			EQU 0F0F0H ; color of the missile
-MAX_MISSILE_LINE        EQU 0011H  ; maximum line the missile can go
+MISSILE_DIMENSIONS      EQU 0101H   ; length and height of the missile
+MISSILE_COLOR			EQU 0F0F0H  ; color of the missile
+MAX_MISSILE_LINE        EQU 0011H   ; maximum line the missile can go
 
 IN_MENU    EQU 0000H  ; value when the user is in a menu
 IN_GAME    EQU 0001H  ; value when the user is in a game
@@ -140,7 +138,7 @@ BAD_METEOR_GIANT_PATTERN:
 	WORD 8800H
 
 MISSILE:
-	WORD MISSILE_START_POS_X, MISSILE_START_POS_Y
+	WORD NULL, NULL
 	WORD MISSILE_PATTERN
 
 MISSILE_PATTERN:
@@ -372,6 +370,7 @@ game_Over_Return:
 game_Reset:
 	CALL var_Reset
 	CALL meteor_Reset
+	CALL missile_Reset
 	CALL rover_Reset
 	MOV  [CLEAR_SCREEN], R0 ; clears all the pixels on the screen
 	RET
@@ -601,36 +600,92 @@ image_Erase:
 ; ROVER: Deals with the movement of the rover that defends planet X.
 ;=============================================================================
 
+PROCESS SP_RoverHandling
+
 ; ----------------------------------------------------------------------------
-; rover_Move: Moves the rover continuously left to right.
-; - R1 -> direction the rover is supposed to go
+; rover_Handling:
+; ----------------------------------------------------------------------------
+
+rover_Handling:
+	WAIT
+
+	MOV  R1, [KEY_PRESSING]
+	CMP  R1, NULL
+	JZ   rover_VerifyBounds
+	CMP  R1, 0002H
+	JZ   rover_VerifyBounds
+	JMP  rover_Handling
+
+	MOV  R2, [GAME_STATE]
+	CMP  R2, IN_GAME
+	JNZ  rover_Handling
+
+; ----------------------------------------------------------------------------
+; rover_VerifyBounds:
+; ----------------------------------------------------------------------------
+
+rover_VerifyBounds:
+	SUB  R1, 0001H
+	MOV  R0, ROVER
+
+	MOV  R2, [R0]
+	ADD  R2, R1
+
+	JN   rover_Handling
+	MOV  R1, MAX_COL_ROVER
+	CMP  R2, R1
+	JGT  rover_Handling
+
+	MOV  R1, ROVER_DELAY
+
+; ----------------------------------------------------------------------------
+; rover_Move:
 ; ----------------------------------------------------------------------------
 
 rover_Move:
-	PUSH R0
-	PUSH R1
-	PUSH R2
+	WAIT
+
+	SUB  R1, 0001H
+	JNZ rover_Move
+
+	CALL image_Erase
+	MOV  [R0], R2
+	CALL image_Draw
+
+	MOV  R1, [PIXEL_OVERLAP]
+	CMP  R1, TRUE
+	JNZ  rover_Handling
+
+; ----------------------------------------------------------------------------
+; rover_CollisionHandling:
+; ----------------------------------------------------------------------------
+
+rover_CollisionHandling:
+
+; ----------------------------------------------------------------------------
+; rover_GoodCollision:
+; ----------------------------------------------------------------------------
+
+rover_GoodCollision:
+	CALL image_Erase
 
 	MOV  R0, ROVER
-	MOV  R2, [R0]           ; obtains the current column of the rover
-	ADD  R2, R1             ; updates column value
+	CALL image_Draw
 
-	JN   rover_Move_Return  ; if it tries to go left but it's on column 0, it exits
-	MOV  R1, MAX_COL_ROVER  ; obtains the maximum column the rover can be at
-	CMP  R2, R1             ; compares updated column value with maximum column value
-	JGT  rover_Move_Return  ; if it tries to go right but it can't fit in the screen, it exits
+	MOV  R0, ENERGY_GOOD_METEOR_INCREASE
+	MOV  [ENERGY_CHANGE], R0
+	MOV  R0, 1
+	MOV  [SOUND_PLAY], R0
 
-	CALL delay_Drawing      ; controls the speed at which the rover moves
-	CALL image_Erase        ; it erases the current rover
+	JMP  rover_Handling
 
-	MOV  [R0], R2           ; updates the current position of the rover
-	CALL image_Draw         ; paints new rover on the pixelscreen
+; ----------------------------------------------------------------------------
+; rover_BadCollision:
+; ----------------------------------------------------------------------------
 
-rover_Move_Return:
-	POP  R2
-	POP  R1
-	POP  R0
-	RET
+rover_BadCollision:
+	CALL game_OverBecauseMeteor
+	JMP  rover_Handling
 
 ; ----------------------------------------------------------------------------
 ; rover_Reset: Resets the rovers starting position to the center of the screen.
@@ -666,9 +721,15 @@ PROCESS SP_EnergyHandling
 ; ----------------------------------------------------------------------------
 
 energy_Handling:
+	WAIT
+
 	MOV  R0, [ENERGY_CHANGE]     ; gets the value to increase/decrease the energy of the rover
 	MOV  R1, [ENERGY_HEX]        ; obtains the current energy
 	ADD  R1, R0                  ; adds the current energy with the amount to increase/decrease
+
+	MOV  R0, [GAME_STATE]
+	CMP  R0, IN_GAME
+	JNZ  energy_Handling         ; if there is no elapsed game it doesn't update the energy
 
 	CMP  R1, NULL
 	JLE  energy_Handling_MinLim  ; if the energy becomes negative it becomes stuck at 0
@@ -718,70 +779,95 @@ energy_Reset:
 PROCESS SP_MissileHandling
 
 ; ----------------------------------------------------------------------------
-; missile_Handling: Fires a missile when the key 1 is pressed
+; missile_Handling: Verifies if there is an elapsed game and if the number 1
+; key was pressed in order to fire a missile.
 ; ----------------------------------------------------------------------------
 
 missile_Handling:
 	WAIT
 
-	MOV R0, [GAME_STATE]
-	MOV R1, IN_GAME
-	CMP R0, R1              ; checks if the game is not paused or at the start/end
-	JNZ missile_Handling
+	MOV  R0, [KEY_PRESSED]
+	CMP  R0, 0001H            ; checks if the key currently being pressed is key 1
+	JNZ  missile_Handling
 
-	MOV R0, [KEY_PRESSING]
-	CMP R0, R1              ; checks if the key currently being pressed is key 1
-	JNZ missile_Handling
+	MOV  R0, [GAME_STATE]
+	CMP  R0, IN_GAME          ; checks if the game is not paused or at the start/end
+	JNZ  missile_Handling
+
+; ----------------------------------------------------------------------------
+; missile_InitDraw: Draws the initial the missile above the rover.
+; ----------------------------------------------------------------------------
 
 missile_InitDraw:
-	MOV  R0, ROVER
-	MOV  R1, MISSILE
+	MOV  R0, MISSILE
+	MOV  R1, ROVER
 
-	MOV  R2, [R0]           ; obtains the current column of the rover
-	ADD R2, 2               ; obtains the column the missile will be draw on
-	MOV [R1], R2            ; uptades the value of the missile's column
+	MOV  R2, [R1]             ; obtains the current column of the rover
+	ADD  R2, 0002H            ; obtains the column the missile will be drawn on
+	MOV  [R0], R2             ; uptades the value of the missile's column
 
-	ADD R0, NEXT_WORD       ; obtains the address of the line of the rover
-	ADD R1, NEXT_WORD       ; obtains the address of the line of the missile
+	MOV  R3, NEXT_WORD        ; used to obtain the address of the missile's line
+	ADD  R1, NEXT_WORD        ; obtains the address of the line of the rover
 
-	MOV R2, [R0]            ; obtains the current line of the rover
-	SUB R2, 1               ; obtains the line the missile will be draw on
-	MOV [R1], R2            ; uptades the value of the pixel's line
+	MOV  R2, [R1]             ; obtains the current line of the rover
+	SUB  R2, 0001H            ; obtains the line the missile will be drawn on
+	MOV  [R0 + R3], R2        ; updates the value of the pixel's line
 
-	MOV R0, MISSILE
-	CALL image_Draw
+	CALL image_Draw           ; draws the initial missile on the screen
+	MOV  R4, 0
+	MOV  [SOUND_PLAY], R4     ; plays the shooting sound when a missile is shot
+	MOV  R4, ENERGY_MISSILE_CONSUMPTION
+	MOV  [ENERGY_CHANGE], R4  ; drains 5% of the energy per missile shot
+
+; ----------------------------------------------------------------------------
+; missile_VerifyBounds: Verifies if the missile collided with a meteor or if
+; it reached the maximum line it can be at.
+; ----------------------------------------------------------------------------
 
 missile_VerifyBounds:
-	MOV R0, [MOVE_MISSILE]
-	MOV R0, MISSILE
+	MOV  R4, [MOVE_MISSILE]
 
-	ADD R0, NEXT_WORD       ; obtains the address of the line of the missile
-	MOV R1, [R0]            ; obtains the line of the missile
-	MOV R2, 0
-	CMP R1, R2              ; checks if the missile has collided with a meteor
-	JZ missile_Handling
+	MOV  R1, [R0 + R3]        ; obtains the line of the missile
+	CMP  R1, NULL             ; checks if the missile has collided with a meteor
+	JZ   missile_Handling
 
-	MOV R0, MISSILE
-	CALL image_Erase         ; deletes the missile
+	CALL image_Erase          ; deletes the missile from the pixelscreen
 
-	SUB R1, 1                ; updates the line of the missile
-	MOV R2, MAX_MISSILE_LINE
-	CMP R1, R2               ; checks if the missile doesn't surpass a defined line limit
-	JLE missile_Handling
+	SUB  R1, 0001H            ; gets the new line of the missile
+	MOV  R2, MAX_MISSILE_LINE
+	CMP  R1, R2               ; checks if the missile doesn't surpass a defined line limit
+	JLT  missile_Handling
+
+; ----------------------------------------------------------------------------
+; missile_Move: Actually moves the meteor one line above it's previous position.
+; ----------------------------------------------------------------------------
 
 missile_Move:
-	MOV R0, MISSILE
+	MOV  [R0 + R3], R1        ; updates the missile line after verifying it's safe to do so
+	CALL image_Draw           ; draws the missile on the new position
 
-	ADD R0, NEXT_WORD       ; obtains the address of the line of the missile          
-	MOV R1, [R0]            ; obtains the line of the missile
-	SUB R1, 1               ; obtains the new line of the missile (after the movement)
-	MOV [R0], R1            ; updates the line
+	JMP  missile_VerifyBounds
 
-	MOV R0, MISSILE
-	CALL image_Draw         ; draws the missile
-	
-	JMP missile_VerifyBounds
-	
+; ----------------------------------------------------------------------------
+; missile_Reset: Resets the missile to it's original state (both coordinates
+; at zero) that represents the missile out of the screen.
+; ----------------------------------------------------------------------------
+
+missile_Reset:
+	PUSH R0
+	PUSh R1
+
+	MOV  R0, MISSILE
+	MOV  R1, NULL
+	MOV  [R0], R1
+	ADD  R0, NEXT_WORD
+	MOV  R1, NULL
+	MOV  [R0], R1
+
+	POP  R1
+	POP  R0
+	RET
+
 ;=============================================================================
 ; METEOR: Deals with two types of meteors, the good ones that help the rover
 ; defend the planet X and the bad ones that destroy the rover and the planet X.
