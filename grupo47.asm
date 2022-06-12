@@ -561,7 +561,6 @@ pixel_Draw:
 
 	MOV  R2, TRUE
 	MOV  [PIXEL_OVERLAP], R2    ; if those conditions don't verify, then a pixel overlap happened
-	JMP  pixel_Draw_Return
 
 pixel_Draw_Paint:
 	MOV  [DEF_PIXEL_WRITE], R5  ; colors the pixel
@@ -620,7 +619,7 @@ rover_Move:
 	CMP  R2, R1             ; compares updated column value with maximum column value
 	JGT  rover_Move_Return  ; if it tries to go right but it can't fit in the screen, it exits
 
-	;CALL delay_Drawing      ; controls the speed at which the rover moves
+	CALL delay_Drawing      ; controls the speed at which the rover moves
 	CALL image_Erase        ; it erases the current rover
 
 	MOV  [R0], R2           ; updates the current position of the rover
