@@ -52,6 +52,10 @@ ROVER_DELAY             EQU 4000H   ; delay used to limit the speed of the rover
 METEOR_START_POS_Y      EQU 0FFFBH  ; the starting Y position of any meteors top left pixel
 METEOR_GIANT_DIMENSIONS EQU 0505H   ; length and height of the giant meteor
 BAD_METEOR_COLOR        EQU 0FF00H  ; color used for bad meteors
+MISSILE_START_POS_X     EQU 0022H  ; the starting X position of the missile
+MISSILE_START_POS_Y     EQU 001BH  ; the starting Y position of the missile
+MISSILE_DIMENSIONS      EQU 0101H  ; length and height of the missile
+MISSILE_COLOR			EQU 0F0F0H ; color of the missile
 
 IN_MENU    EQU 0000H  ; value when the user is in a menu
 IN_GAME    EQU 0001H  ; value when the user is in a game
@@ -133,6 +137,15 @@ BAD_METEOR_GIANT_PATTERN:
 	WORD 7000H
 	WORD 0A800H
 	WORD 8800H
+
+MISSILE:
+	WORD MISSILE_START_POS_X, MISSILE_START_POS_Y
+	WORD MISSILE_PATTERN
+
+MISSILE_PATTERN:
+	WORD MISSILE_DIMENSIONS
+	WORD MISSILE_COLOR
+	WORD 8000H
 
 ;=============================================================================
 ; INTERRUPTION TABLE:
