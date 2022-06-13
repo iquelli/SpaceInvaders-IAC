@@ -68,7 +68,7 @@ GOOD_METEOR_COLOR        EQU 0F0F0H  ; color used for good meteors
 MISSILE_DIMENSIONS EQU 0101H   ; length and height of the missile
 MISSILE_COLOR      EQU 0F0F0H  ; color of the missile
 MAX_MISSILE_LINE   EQU 0011H   ; maximum line the missile can go
-MISSILE_SCREEN     EQU 0005H   ; screen to draw the missile in
+MISSILE_SCREEN     EQU 0004H   ; screen to draw the missile in
 
 IN_MENU    EQU 0000H  ; value when the user is in a menu
 IN_GAME    EQU 0001H  ; value when the user is in a game
@@ -427,17 +427,18 @@ game_Pause:
 	DI
 	MOV  R0, 1
 	MOV  [SELECT_FOREGROUND], R0  ; puts a pause button on the screen
-	MOV  R0, IN_PAUSE             ; changes the game state to paused
+	MOV  R0, IN_PAUSE
+	MOV  [GAME_STATE], R0         ; changes the game state to paused
 	JMP  game_Pause_Return
 
 game_Unpause:
 	MOV  R0, 1
 	MOV  [DELETE_FOREGROUND], R0  ; deletes the pause button from the screen
-	MOV  R0, IN_GAME              ; changes the game state to in game
+	MOV  R0, IN_GAME
+	MOV  [GAME_STATE], R0         ; changes the game state to in game
 	EI
 
 game_Pause_Return:
-	MOV  [GAME_STATE], R0  ; saves the current state or changes the state of the game
 	POP  R0
 	RET
 
@@ -682,19 +683,28 @@ pixel_Draw_Return:
 	RET
 
 ; ----------------------------------------------------------------------------
-; image_Erase: Erases all the pixels from a specified screen that contains the
-; image it wants to remove.
+; image_Erase: Erases an image received as an argument from the pixelscreen.
+; It sets the color of the image to NULL, draws it and then resets the color.
 ; - R0 -> image table to erase
 ; ----------------------------------------------------------------------------
 
 image_Erase:
 	PUSH R1
 	PUSH R2
+	PUSH R3
 
-	MOV  R2, 0004H           ; used to obtain the screen information from the image table
-	MOV  R1, [R0 + R2]       ; obtains the screen to erase
-	MOV  [CLEAR_SCREEN], R1  ; erases the image from the specified screen
+	MOV  R2, 0004H
+	MOV  R1, [R0 + R2]  ; obtains the pattern information of the object
 
+	ADD  R1, NEXT_WORD
+	MOV  R2, [R1]       ; backs up the original color into R2
+
+	MOV  R3, NULL
+	MOV  [R1], R3       ; sets the color of the image to NULL in order to erase it
+	CALL image_Draw     ; actually erases the image
+	MOV  [R1], R2       ; resets the color to the original
+
+	POP  R3
 	POP  R2
 	POP  R1
 	RET
@@ -746,7 +756,7 @@ rover_VerifyBounds:
 rover_Move:
 	SUB  R1, 0001H
 	YIELD
-	JNZ rover_Move
+	JNZ  rover_Move
 
 	CALL image_Erase
 	MOV  [R0], R2
@@ -923,6 +933,7 @@ missile_Reset:
 	MOV  R0, MISSILE
 	MOV  R1, NULL
 	MOV  [R0], R1
+
 	ADD  R0, NEXT_WORD
 	MOV  R1, NULL
 	MOV  [R0], R1
