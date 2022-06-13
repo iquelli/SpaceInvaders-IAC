@@ -33,7 +33,9 @@ DEF_COL           EQU 600CH  ; address of the command to define a column
 DEF_PIXEL_WRITE   EQU 6012H  ; address of the command to write a pixel
 DEF_PIXEL_READ    EQU 6014H  ; address of the command to read a pixel's state
 OBTAIN_COLOR      EQU 6010H  ; address of the command to obtain the current color of a pixel
-CLEAR_SCREEN      EQU 6002H  ; address of the command to clear the screen
+CLEAR_SCREENS     EQU 6002H  ; address of the command to clear all the screens
+CLEAR_SCREEN      EQU 6000H  ; address of the command to clear a specific screen
+SELECT_SCREEN     EQU 6004H  ; address of the command to select a specific screen
 SELECT_BACKGROUND EQU 6042H  ; address of the command to select a background
 SELECT_FOREGROUND EQU 6046H  ; address of the command to select a foreground
 DELETE_FOREGROUND EQU 6044H  ; address of the command to delete the foreground
@@ -43,19 +45,29 @@ VIDEO_CYCLE       EQU 605CH  ; address of the command to play a video on repeat
 VIDEO_STOP        EQU 6068H  ; address of the command to make all videos stop
 VIDEO_STATE       EQU 6052H  ; address of the command to obtain the state of a video
 
-MAX_LIN                 EQU 0020H   ; the first line we can't paint at
-MAX_COL_ROVER           EQU 003BH   ; maximum column the rover can be at
-ROVER_START_POS_X       EQU 0020H   ; the starting X position of the rover's top left pixel
-ROVER_START_POS_Y       EQU 001CH   ; the starting Y position of the rover's top left pixel
-ROVER_DIMENSIONS        EQU 0504H   ; length and height of the rover
-ROVER_COLOR             EQU 0F0FFH  ; color used for the rover
-ROVER_DELAY             EQU 4000H   ; delay used to limit the speed of the rover
-METEOR_START_POS_Y      EQU 0FFFBH  ; the starting Y position of any meteors top left pixel
-METEOR_GIANT_DIMENSIONS EQU 0505H   ; length and height of the giant meteor
-BAD_METEOR_COLOR        EQU 0FF00H  ; color used for bad meteors
-MISSILE_DIMENSIONS      EQU 0101H   ; length and height of the missile
-MISSILE_COLOR           EQU 0F0F0H  ; color of the missile
-MAX_MISSILE_LINE        EQU 0011H   ; maximum line the missile can go
+MAX_COL_ROVER     EQU 003BH   ; maximum column the rover can be at
+ROVER_START_POS_X EQU 0020H   ; the starting X position of the rover's top left pixel
+ROVER_START_POS_Y EQU 001CH   ; the starting Y position of the rover's top left pixel
+ROVER_DIMENSIONS  EQU 0504H   ; length and height of the rover
+ROVER_COLOR       EQU 0F0FFH  ; color used for the rover
+ROVER_DELAY       EQU 4000H   ; delay used to limit the speed of the rover
+ROVER_SCREEN      EQU 0004H   ; screen to draw the rover in
+
+MAX_LIN                  EQU 0020H   ; the first line we can't paint at
+METEOR_START_POS_Y       EQU 0FFFBH  ; the starting Y position of any meteors top left pixel
+METEOR_TINY_DIMENSIONS   EQU 0101H   ; length and height of a tiny meteor
+METEOR_SMALL_DIMENSIONS  EQU 0202H   ; length and height of a small meteor
+METEOR_MEDIUM_DIMENSIONS EQU 0303H   ; length and height of a medium meteor
+METEOR_LARGE_DIMENSIONS  EQU 0404H   ; length and height of a huge meteor
+METEOR_GIANT_DIMENSIONS  EQU 0505H   ; length and height of a giant meteor
+DISTANT_METEOR_COLOR     EQU 0A000H  ; color used for distant meteors
+BAD_METEOR_COLOR         EQU 0FF00H  ; color used for bad meteors
+GOOD_METEOR_COLOR        EQU 0F0F0H  ; color used for good meteors
+
+MISSILE_DIMENSIONS EQU 0101H   ; length and height of the missile
+MISSILE_COLOR      EQU 0F0F0H  ; color of the missile
+MAX_MISSILE_LINE   EQU 0011H   ; maximum line the missile can go
+MISSILE_SCREEN     EQU 0005H   ; screen to draw the missile in
 
 IN_MENU    EQU 0000H  ; value when the user is in a menu
 IN_GAME    EQU 0001H  ; value when the user is in a game
@@ -66,7 +78,7 @@ FALSE        EQU 0000H  ; false is represented by the value zero
 NULL         EQU 0000H  ; value equal to zero
 NEXT_WORD    EQU 0002H  ; value that a word occupies at an address
 NEXT_BYTE    EQU 0001H  ; value that a byte occupies at an address
-VAR_LIST_LEN EQU 0003H  ; the length of the variables list
+VAR_LIST_LEN EQU 0002H  ; the length of the variables list
 
 ;=============================================================================
 ; VARIABLE DECLARATION:
@@ -86,18 +98,11 @@ MOVE_METEOR:  LOCK FALSE  ; used by an interruption to indicate when to move the
 MOVE_MISSILE: LOCK FALSE  ; used by an interruption to indicate when to move the missile
 ENERGY_DRAIN: LOCK NULL   ; used by an interruption to indicate the amount of energy to decrease periodically
 
-PIXEL_OVERLAP: WORD FALSE  ; variable used to detect overlap of different color pixels
-
 VAR_LIST:  ; list containing the addresses to all the program variables
 	WORD VAR_LIST_LEN
 	WORD GAME_STATE
-	WORD KEY_PRESSED
-	WORD KEY_PRESSING
-	WORD MOVE_METEOR
-	WORD MOVE_MISSILE
-	WORD ENERGY_DRAIN
 
-GAME_MANUAL_CHANGE_LIST:  ; list containing all the game states the user can switch between
+GAME_MANUAL_CHANGE_LIST:  ; list containing all the game states the user can switch between manually
 	WORD game_Init
 	WORD game_PauseHandling
 	WORD game_End
@@ -115,6 +120,7 @@ GAME_MANUAL_CHANGE_LIST:  ; list containing all the game states the user can swi
 
 ROVER:
 	WORD ROVER_START_POS_X, ROVER_START_POS_Y
+	WORD ROVER_SCREEN
 	WORD ROVER_PATTERN
 
 ROVER_PATTERN:
@@ -125,9 +131,41 @@ ROVER_PATTERN:
 	WORD 0F800H
 	WORD 5000H
 
-BAD_METEOR_GIANT:
-	WORD 002CH, METEOR_START_POS_Y
-	WORD BAD_METEOR_GIANT_PATTERN
+MISSILE:
+	WORD NULL, NULL
+	WORD MISSILE_SCREEN
+	WORD MISSILE_PATTERN
+
+MISSILE_PATTERN:
+	WORD MISSILE_DIMENSIONS
+	WORD MISSILE_COLOR
+	WORD 8000H
+
+METEOR_TINY_PATTERN:
+	WORD METEOR_TINY_DIMENSIONS
+	WORD DISTANT_METEOR_COLOR
+	WORD 8000H
+
+METEOR_SMALL_PATTERN:
+	WORD METEOR_SMALL_DIMENSIONS
+	WORD DISTANT_METEOR_COLOR
+	WORD 0C000H
+	WORD 0C000H
+
+BAD_METEOR_MEDIUM_PATTERN:
+	WORD METEOR_MEDIUM_DIMENSIONS
+	WORD BAD_METEOR_COLOR
+	WORD 0A000H
+	WORD 4000H
+	WORD 0A000H
+
+BAD_METEOR_LARGE_PATTERN:
+	WORD METEOR_LARGE_DIMENSIONS
+	WORD BAD_METEOR_COLOR
+	WORD 9000H
+	WORD 9000H
+	WORD 6000H
+	WORD 9000H
 
 BAD_METEOR_GIANT_PATTERN:
 	WORD METEOR_GIANT_DIMENSIONS
@@ -138,14 +176,65 @@ BAD_METEOR_GIANT_PATTERN:
 	WORD 0A800H
 	WORD 8800H
 
-MISSILE:
-	WORD NULL, NULL
-	WORD MISSILE_PATTERN
+BAD_METEOR_PATTERNS:
+	WORD METEOR_TINY_PATTERN
+	WORD METEOR_SMALL_PATTERN
+	WORD BAD_METEOR_MEDIUM_PATTERN
+	WORD BAD_METEOR_LARGE_PATTERN
+	WORD BAD_METEOR_GIANT_PATTERN
 
-MISSILE_PATTERN:
-	WORD MISSILE_DIMENSIONS
-	WORD MISSILE_COLOR
-	WORD 8000H
+GOOD_METEOR_MEDIUM_PATTERN:
+	WORD METEOR_MEDIUM_DIMENSIONS
+	WORD GOOD_METEOR_COLOR
+	WORD 4000H
+	WORD 0D000H
+	WORD 4000H
+
+GOOD_METEOR_LARGE_PATTERN:
+	WORD METEOR_LARGE_DIMENSIONS
+	WORD GOOD_METEOR_COLOR
+	WORD 6000H
+	WORD 0F000H
+	WORD 0F000H
+	WORD 6000H
+
+GOOD_METEOR_GIANT_PATTERN:
+	WORD METEOR_GIANT_DIMENSIONS
+	WORD GOOD_METEOR_COLOR
+	WORD 7000H
+	WORD 0F800H
+	WORD 0F800H
+	WORD 0F800H
+	WORD 7000H
+
+GOOD_METEOR_PATTERNS:
+	WORD METEOR_TINY_PATTERN
+	WORD METEOR_SMALL_PATTERN
+	WORD GOOD_METEOR_MEDIUM_PATTERN
+	WORD GOOD_METEOR_LARGE_PATTERN
+	WORD GOOD_METEOR_GIANT_PATTERN
+
+METEOR_1:
+	WORD NULL, METEOR_START_POS_Y
+	WORD NULL
+
+METEOR_2:
+	WORD NULL, METEOR_START_POS_Y
+	WORD NULL
+
+METEOR_3:
+	WORD NULL, METEOR_START_POS_Y
+	WORD NULL
+
+METEOR_4:
+	WORD NULL, METEOR_START_POS_Y
+	WORD NULL
+
+METEOR_LIST:
+	WORD METEOR_1
+	WORD METEOR_2
+	WORD METEOR_3
+	WORD METEOR_4
 
 ;=============================================================================
 ; INTERRUPTION TABLE:
@@ -167,7 +256,16 @@ SP_Main:
 SP_KeySweeper:
 
 	STACK 100H
-SP_MeteorHandling:
+SP_MeteorHandling_1:
+
+	STACK 100H
+SP_MeteorHandling_2:
+
+	STACK 100H
+SP_MeteorHandling_3:
+
+	STACK 100H
+SP_MeteorHandling_4:
 
 	STACK 100H
 SP_RoverHandling:
@@ -197,7 +295,6 @@ init:
 	EI0
 	EI1
 	EI2
-	EI
 
 	CALL key_Sweeper
 	CALL meteor_Handling
@@ -272,10 +369,10 @@ game_Init:
 	MOV  [VIDEO_PLAY], R0         ; plays the game starting video
 
 game_Init_WaitAnimation:
-	MOV R0, [VIDEO_STATE]          ; obtains the state of the video
+	MOV R0, [VIDEO_STATE]         ; obtains the state of the video
 
-	CMP R0, NULL                   ; checks if the animation has stopped playing
-	JNZ game_Init_WaitAnimation    ; keeps going up until the animation has ended
+	CMP R0, NULL                  ; checks if the animation has stopped playing
+	JNZ game_Init_WaitAnimation   ; keeps going up until the animation has ended
 
 game_Init_Draw:
 	MOV  R0, 0
@@ -288,6 +385,7 @@ game_Init_Draw:
 
 game_Init_Return:
 	POP  R0
+	EI
 	RET
 
 ; ----------------------------------------------------------------------------
@@ -307,6 +405,7 @@ game_PauseHandling:
 	JMP  game_Pause_Return  ; if the program is in any other state it does nothing
 
 game_Pause:
+	DI
 	MOV  R0, 1
 	MOV  [SELECT_FOREGROUND], R0  ; puts a pause button on the screen
 	MOV  R0, IN_PAUSE             ; changes the game state to paused
@@ -316,6 +415,7 @@ game_Unpause:
 	MOV  R0, 1
 	MOV  [DELETE_FOREGROUND], R0  ; deletes the pause button from the screen
 	MOV  R0, IN_GAME              ; changes the game state to in game
+	EI
 
 game_Pause_Return:
 	MOV  [GAME_STATE], R0  ; saves the current state or changes the state of the game
@@ -361,6 +461,7 @@ game_End:
 ; ----------------------------------------------------------------------------
 
 game_Over:
+	DI
 	CALL game_Reset
 
 	MOV  [VIDEO_CYCLE], R0  ; plays the actual video
@@ -377,10 +478,10 @@ game_Over_Return:
 
 game_Reset:
 	CALL var_Reset
-	CALL meteor_Reset
+	CALL meteors_Reset
 	CALL missile_Reset
 	CALL rover_Reset
-	MOV  [CLEAR_SCREEN], R0 ; clears all the pixels on the screen
+	MOV  [CLEAR_SCREENS], R0 ; clears all the pixels on all the screens
 	RET
 
 ;=============================================================================
@@ -465,7 +566,7 @@ key_CheckChange:
 ; ----------------------------------------------------------------------------
 ; image_Draw: Draws an image received as an argument into the pixelscreen.
 ; It knows the top left coordinate, the dimensions of the image, the image
-; pattern and image color in order to paint it.
+; pattern, image color in order to paint it and the screen to paint in.
 ; - R0 -> image table to draw
 ; ----------------------------------------------------------------------------
 
@@ -484,6 +585,9 @@ image_Draw:
 	MOV  R1, [R0]       ; obtains the column of the object
 	ADD  R0, NEXT_WORD
 	MOV  R2, [R0]       ; obtains the line where the object currently is
+	ADD  R0, NEXT_WORD
+	MOV  R6, [R0]       ; obtains the screen to paint in
+	MOV  [SELECT_SCREEN], R6
 
 	ADD  R0, NEXT_WORD
 	MOV  R6, [R0]       ; obtains the address that stores the drawing information
@@ -541,8 +645,7 @@ image_Draw_Return:
 
 ; ----------------------------------------------------------------------------
 ; pixel_Draw: Either does nothing if the C flag is 0 or draws a pixel with
-; the selected color. Detects if there was an overlap in pixels of different
-; colors.
+; the selected color.
 ; - R5 -> current color to paint if possible
 ; - R6 -> current column of the pixel
 ; - R7 -> current line of the pixel
@@ -556,21 +659,6 @@ pixel_Draw:
 
 	MOV  [DEF_COL], R6          ; sets the column of the pixel
 	MOV  [DEF_LIN], R7          ; sets the line of the pixel
-
-	CMP  R5, NULL
-	JZ   pixel_Draw_Paint       ; if we are trying to erase the pixel no overlap happens
-
-	MOV  R1, [OBTAIN_COLOR]     ; gets the color of the current pixel before painting
-	CMP  R1, NULL
-	JZ   pixel_Draw_Paint       ; if the pixel we are trying to paint is empty no overlap happens
-
-	CMP  R1, R5                 ; if they are the same color no overlap happens
-	JZ   pixel_Draw_Paint       ; because we are repainting
-
-	MOV  R2, TRUE
-	MOV  [PIXEL_OVERLAP], R2    ; if those conditions don't verify, then a pixel overlap happened
-
-pixel_Draw_Paint:
 	MOV  [DEF_PIXEL_WRITE], R5  ; colors the pixel
 
 pixel_Draw_Return:
@@ -578,28 +666,19 @@ pixel_Draw_Return:
 	RET
 
 ; ----------------------------------------------------------------------------
-; image_Erase: Erases an image received as an argument from the pixelscreen.
-; It sets the color of the image to NULL, draws it and then resets the color.
+; image_Erase: Erases all the pixels from a specified screen that contains the
+; image it wants to remove.
 ; - R0 -> image table to erase
 ; ----------------------------------------------------------------------------
 
 image_Erase:
 	PUSH R1
 	PUSH R2
-	PUSH R3
 
-	MOV  R2, 0004H
-	MOV  R1, [R0 + R2]  ; obtains the pattern information of the object
+	MOV  R2, 0004H           ; used to obtain the screen information from the image table
+	MOV  R1, [R0 + R2]       ; obtains the screen to erase
+	MOV  [CLEAR_SCREEN], R1  ; erases the image from the specified screen
 
-	ADD  R1, NEXT_WORD
-	MOV  R2, [R1]       ; backs up the original color into R2
-
-	MOV  R3, NULL
-	MOV  [R1], R3       ; sets the color of the image to NULL in order to erase it
-	CALL image_Draw     ; actually erases the image
-	MOV  [R1], R2       ; resets the color to the original
-
-	POP  R3
 	POP  R2
 	POP  R1
 	RET
@@ -615,26 +694,22 @@ PROCESS SP_RoverHandling
 ; ----------------------------------------------------------------------------
 
 rover_Handling:
-	WAIT
-
-	MOV  R0, [GAME_STATE]
-	CMP  R0, IN_GAME          ; checks if the game is not paused or at the start/end
-	JNZ  rover_Handling
-
-	MOV  R1, [KEY_PRESSED]
-	CMP  R1, 0000H            ; checks if the key currently being pressed is key 0
-	JZ  rover_VerifyBounds
-
-	CMP  R1, 0002H            ; checks if the key currently being pressed is key 2
-	JZ  rover_VerifyBounds
-
-	JMP rover_Handling
+	MOV  R1, [KEY_PRESSING]
+	CMP  R1, NULL
+	JZ   rover_VerifyBounds
+	CMP  R1, 0002H
+	JZ   rover_VerifyBounds
+	JMP  rover_Handling
 
 ; ----------------------------------------------------------------------------
 ; rover_VerifyBounds:
 ; ----------------------------------------------------------------------------
 
 rover_VerifyBounds:
+	MOV  R2, [GAME_STATE]
+	CMP  R2, IN_GAME
+	JNZ  rover_Handling
+
 	SUB  R1, 0001H
 	MOV  R0, ROVER
 
@@ -654,45 +729,13 @@ rover_VerifyBounds:
 
 rover_Move:
 	SUB  R1, 0001H
+	YIELD
 	JNZ rover_Move
 
 	CALL image_Erase
 	MOV  [R0], R2
 	CALL image_Draw
 
-	MOV  R1, [PIXEL_OVERLAP]
-	CMP  R1, TRUE
-	JNZ  rover_Handling
-
-; ----------------------------------------------------------------------------
-; rover_CollisionHandling:
-; ----------------------------------------------------------------------------
-
-rover_CollisionHandling:
-
-; ----------------------------------------------------------------------------
-; rover_GoodCollision:
-; ----------------------------------------------------------------------------
-
-rover_GoodCollision:
-	CALL image_Erase
-
-	MOV  R0, ROVER
-	CALL image_Draw
-
-	MOV  R0, ENERGY_GOOD_METEOR_INCREASE
-	MOV  [ENERGY_CHANGE], R0
-	MOV  R0, 1
-	MOV  [SOUND_PLAY], R0
-
-	JMP  rover_Handling
-
-; ----------------------------------------------------------------------------
-; rover_BadCollision:
-; ----------------------------------------------------------------------------
-
-rover_BadCollision:
-	CALL game_OverBecauseMeteor
 	JMP  rover_Handling
 
 ; ----------------------------------------------------------------------------
@@ -729,12 +772,6 @@ PROCESS SP_EnergyHandling
 ; ----------------------------------------------------------------------------
 
 energy_Handling:
-	WAIT
-
-	MOV  R0, [GAME_STATE]
-	CMP  R0, IN_GAME
-	JNZ  energy_Handling         ; if there is no elapsed game it doesn't update the energy
-
 	MOV  R0, [ENERGY_CHANGE]     ; gets the value to increase/decrease the energy of the rover
 	MOV  R1, [ENERGY_HEX]        ; obtains the current energy
 	ADD  R1, R0                  ; adds the current energy with the amount to increase/decrease
@@ -863,7 +900,7 @@ missile_Move:
 
 missile_Reset:
 	PUSH R0
-	PUSh R1
+	PUSH R1
 
 	MOV  R0, MISSILE
 	MOV  R1, NULL
