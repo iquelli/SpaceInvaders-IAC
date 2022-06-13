@@ -275,7 +275,7 @@ game_Init_WaitAnimation:
 	MOV R0, [VIDEO_STATE]          ; obtains the state of the video
 
 	CMP R0, NULL                   ; checks if the animation has stopped playing
-	JNZ wait_AnimationCycle        ; keeps going up until the animation has ended
+	JNZ game_Init_WaitAnimation    ; keeps going up until the animation has ended
 
 game_Init_Draw:
 	MOV  R0, 0
@@ -617,16 +617,18 @@ PROCESS SP_RoverHandling
 rover_Handling:
 	WAIT
 
-	MOV  R1, [KEY_PRESSING]
-	CMP  R1, NULL
-	JZ   rover_VerifyBounds
-	CMP  R1, 0002H
-	JZ   rover_VerifyBounds
-	JMP  rover_Handling
-
-	MOV  R2, [GAME_STATE]
-	CMP  R2, IN_GAME
+	MOV  R0, [GAME_STATE]
+	CMP  R0, IN_GAME          ; checks if the game is not paused or at the start/end
 	JNZ  rover_Handling
+
+	MOV  R1, [KEY_PRESSED]
+	CMP  R1, 0000H            ; checks if the key currently being pressed is key 0
+	JZ  rover_VerifyBounds
+
+	CMP  R1, 0002H            ; checks if the key currently being pressed is key 2
+	JZ  rover_VerifyBounds
+
+	JMP rover_Handling
 
 ; ----------------------------------------------------------------------------
 ; rover_VerifyBounds:
@@ -651,8 +653,6 @@ rover_VerifyBounds:
 ; ----------------------------------------------------------------------------
 
 rover_Move:
-	WAIT
-
 	SUB  R1, 0001H
 	JNZ rover_Move
 
