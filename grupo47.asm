@@ -972,16 +972,32 @@ PROCESS SP_MeteorHandling_1
 meteor_Handling:
 
 ; ----------------------------------------------------------------------------
-; meteor_VerifyConditions:
+; meteor_VerifyConditions: Verifies if there is an elapsed game
 ; ----------------------------------------------------------------------------
 
 meteor_VerifyConditions:
+	MOV R1, [MOVE_METEOR]     ; constants that controls the movement of meteors
+
+	MOV  R1, [GAME_STATE]
+	CMP  R1, IN_GAME          ; checks if the game is not paused or at the start/end
+	JNZ meteor_VerifyConditions
 
 ; ----------------------------------------------------------------------------
-; meteor_VerifyBounds:
+; meteor_VerifyBounds: Checks if the meteor has passed the bottom of the screen
 ; ----------------------------------------------------------------------------
 
 meteor_VerifyBounds:
+	MOV  R3, NEXT_WORD
+	
+	CALL image_Erase
+
+	MOV  R1, [R0 + R3]  ; obtains the line of the meteor
+	SUB  R1, 0001H      ; obtains the new line of the meteor
+
+	MOV  R2, MAX_LIN
+	CMP R1, R2          ; checks if the meteor's new line surpasses the
+	JGT random_Gen      ; bottom of the screen.
+	
 
 ; ----------------------------------------------------------------------------
 ; meteor_Upgrade:
@@ -990,10 +1006,12 @@ meteor_VerifyBounds:
 meteor_Upgrade:
 
 ; ----------------------------------------------------------------------------
-; meteor_Move:
+; meteor_Move: Moves the meteor one line down it's previous position
 ; ----------------------------------------------------------------------------
 
 meteor_Move:
+	MOV [R0 + R3], R1    ; updates the meteor's line after verifying it's safe to do so
+	CALL image_Draw      ; draws the meteor on the new position
 
 ; ----------------------------------------------------------------------------
 ; meteor_CollisionHandling:
@@ -1002,16 +1020,25 @@ meteor_Move:
 meteor_CollisionHandling:
 
 ; ----------------------------------------------------------------------------
-; meteor_GoodRoverCollision:
+; meteor_GoodRoverCollision: Increases the energy of the rover after it has 
+; collided with a good meteor, deletes the meteor and generates a new one
 ; ----------------------------------------------------------------------------
 
 meteor_GoodRoverCollision:
+	MOV R1, ENERGY_GOOD_METEOR_INCREASE
+	MOV [ENERGY_CHANGE], R1   ; increases 10% of the energy after the collision with a good meteor
+
+	CALL image_Erase          ; erases the meteor
+	CALL random_Gen           ; finds a new position and a new meteor at random
+	JMP meteor_VerifyConditions
 
 ; ----------------------------------------------------------------------------
-; meteor_BadRoverCollision:
+; meteor_BadRoverCollision: Jumps into a function that will make the game go 
+; into the state of game over because a collision with a bad meteor.
 ; ----------------------------------------------------------------------------
 
 meteor_BadRoverCollision:
+	JMP game_OverBecauseMeteor
 
 ; ----------------------------------------------------------------------------
 ; meteor_MissileCollision:
@@ -1075,6 +1102,7 @@ hextodec_Convert:
 ; ----------------------------------------------------------------------------
 
 random_Gen:
+	JMP meteor_VerifyConditions
 
 ;=============================================================================
 ; INTERRUPTION HANDLING:
