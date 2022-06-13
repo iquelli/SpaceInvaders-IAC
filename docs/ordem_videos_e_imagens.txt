@@ -1,11 +1,16 @@
 Ordem (atual) vídeos/sons
-0 - som míssil
-1 - game_menu
-2 - game_menu -> game_start
-3 - game_over_energy
-4 - game_over_energy -> game_start
-5 - game_over_meteor
-6 - game_over_meteor -> game_start 
+0 - game_menu
+1 - game_menu -> game_start
+2 - game_over_energy
+3 - game_over_energy -> game_start
+4 - game_over_meteor
+5 - game_over_meteor -> game_start
+6 - som míssil
+7 - som nave inimiga destruída
+8 - som energia de meteoro bom é reaproveitada
+9 - som game_over_energy
+10 - som game_over_meteor
+11 - som de fundo
 
 Ordem (atual) imagens
 0 - default background
