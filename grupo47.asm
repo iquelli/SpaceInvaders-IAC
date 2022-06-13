@@ -53,6 +53,7 @@ ROVER_COLOR       EQU 0F0FFH  ; color used for the rover
 ROVER_DELAY       EQU 4000H   ; delay used to limit the speed of the rover
 ROVER_SCREEN      EQU 0004H   ; screen to draw the rover in
 
+NUM_METEORS              EQU 0004H   ; the number of meteors in the screens
 MAX_LIN                  EQU 0020H   ; the first line we can't paint at
 METEOR_START_POS_Y       EQU 0FFFBH  ; the starting Y position of any meteors top left pixel
 METEOR_TINY_DIMENSIONS   EQU 0101H   ; length and height of a tiny meteor
@@ -78,7 +79,7 @@ FALSE        EQU 0000H  ; false is represented by the value zero
 NULL         EQU 0000H  ; value equal to zero
 NEXT_WORD    EQU 0002H  ; value that a word occupies at an address
 NEXT_BYTE    EQU 0001H  ; value that a byte occupies at an address
-VAR_LIST_LEN EQU 0002H  ; the length of the variables list
+VAR_LIST_LEN EQU 0006H  ; the length of the variables list
 
 ;=============================================================================
 ; VARIABLE DECLARATION:
@@ -96,11 +97,15 @@ ENERGY_HEX:    WORD ENERGY_HEX_MAX  ; stores the current energy value of the rov
 
 MOVE_METEOR:  LOCK FALSE  ; used by an interruption to indicate when to move the meteors
 MOVE_MISSILE: LOCK FALSE  ; used by an interruption to indicate when to move the missile
-ENERGY_DRAIN: LOCK NULL   ; used by an interruption to indicate the amount of energy to decrease periodically
 
 VAR_LIST:  ; list containing the addresses to all the program variables
 	WORD VAR_LIST_LEN
 	WORD GAME_STATE
+	WORD KEY_PRESSED
+	WORD KEY_PRESSING
+	WORD ENERGY_CHANGE
+	WORD MOVE_METEOR
+	WORD MOVE_MISSILE
 
 GAME_MANUAL_CHANGE_LIST:  ; list containing all the game states the user can switch between manually
 	WORD game_Init
@@ -109,11 +114,12 @@ GAME_MANUAL_CHANGE_LIST:  ; list containing all the game states the user can swi
 
 ;=============================================================================
 ; IMAGE TABLES:
-; - The first two WORD's represents the top left pixel of the image. (X, Y)
-; - The third WORD leads to the information of the object.
-; - The fourth WORD contains the dimensions of the canvas the image is painted
+; - The first two WORD's represents the top left pixel of the image (X, Y).
+; - The third WORD tells the screen each image should be painted in.
+; - The fourth WORD leads to the information of the object.
+; - The fifth WORD contains the dimensions of the canvas the image is painted
 ;   on. (height, length)
-; - The fifth WORD contains the color to paint the image.
+; - The sixth WORD contains the color to paint the image.
 ; - The rest of the WORD's are used to define the pattern of each line, each
 ;   one represents a line with 0's (uncolored pixels) and 1's (colored pixels).
 ;=============================================================================
@@ -216,18 +222,22 @@ GOOD_METEOR_PATTERNS:
 
 METEOR_1:
 	WORD NULL, METEOR_START_POS_Y
+	WORD 0000H
 	WORD NULL
 
 METEOR_2:
 	WORD NULL, METEOR_START_POS_Y
+	WORD 0001H
 	WORD NULL
 
 METEOR_3:
 	WORD NULL, METEOR_START_POS_Y
+	WORD 0002H
 	WORD NULL
 
 METEOR_4:
 	WORD NULL, METEOR_START_POS_Y
+	WORD 0003H
 	WORD NULL
 
 METEOR_LIST:
@@ -267,6 +277,12 @@ SP_MeteorHandling_3:
 	STACK 100H
 SP_MeteorHandling_4:
 
+METEORS_SP_TAB:
+	WORD SP_MeteorHandling_1
+	WORD SP_MeteorHandling_2
+	WORD SP_MeteorHandling_3
+	WORD SP_MeteorHandling_4
+
 	STACK 100H
 SP_RoverHandling:
 
@@ -297,7 +313,11 @@ init:
 	EI2
 
 	CALL key_Sweeper
-	CALL meteor_Handling
+	MOV  R11, NUM_METEORS
+	initialize_Meteors:
+		SUB  R11, 0001H
+		CALL meteor_Handling
+		JNZ  initialize_Meteors
 	CALL rover_Handling
 	CALL missile_Handling
 	CALL energy_Handling
@@ -361,7 +381,6 @@ game_Init:
 	CMP  R0, IN_MENU              ; only starts a new game when it's on a menu
 	JNZ  game_Init_Return
 
-	CALL game_Reset
 	CALL energy_Reset
 
 	MOV  [VIDEO_STOP], R0         ; stops the previous video that was playing (value of R0 doesn't matter)
@@ -463,10 +482,7 @@ game_End:
 game_Over:
 	DI
 	CALL game_Reset
-
 	MOV  [VIDEO_CYCLE], R0  ; plays the actual video
-	MOV  R0, IN_MENU        ; changes the current game state to in menu
-	MOV  [GAME_STATE], R0   ; because the user ended/lost the game
 
 game_Over_Return:
 	POP  R0
@@ -776,6 +792,10 @@ energy_Handling:
 	MOV  R1, [ENERGY_HEX]        ; obtains the current energy
 	ADD  R1, R0                  ; adds the current energy with the amount to increase/decrease
 
+	MOV  R2, [GAME_STATE]
+	CMP  R2, IN_GAME
+	JNZ  energy_Handling
+
 	CMP  R1, NULL
 	JLE  energy_Handling_MinLim  ; if the energy becomes negative it becomes stuck at 0
 	MOV  R2, ENERGY_HEX_MAX      ; obtains the maximum value of energy
@@ -829,8 +849,6 @@ PROCESS SP_MissileHandling
 ; ----------------------------------------------------------------------------
 
 missile_Handling:
-	WAIT
-
 	MOV  R0, [KEY_PRESSED]
 	CMP  R0, 0001H            ; checks if the key currently being pressed is key 1
 	JNZ  missile_Handling
@@ -917,59 +935,6 @@ missile_Reset:
 ; METEOR: Deals with two types of meteors, the good ones that help the rover
 ; defend the planet X and the bad ones that destroy the rover and the planet X.
 ;=============================================================================
-
-; ----------------------------------------------------------------------------
-; meteor_Move: Moves the meteor one line for each press of a certain key
-; ----------------------------------------------------------------------------
-
-meteor_Move:
-	PUSH R0
-	PUSH R1
-	PUSH R2
-	PUSH R3
-
-	MOV  R0, BAD_METEOR_GIANT
-	MOV  R1, R0
-	ADD  R1, NEXT_BYTE
-	MOVB R2, [R1]        ; obtains the current line of the meteor
-	ADD  R2, 0001H       ; obtains the new line
-
-	CALL image_Erase     ; erases the old meteor
-
-	MOV  R3, MAX_LIN
-	CMP  R2, R3          ; compares new line with maximum amount of lines
-	JGT  meteor_Move_Return
-
-	MOV  R2, [R0]        ; obtains meteor's current position
-	ADD  R2, 0001H       ; actually updates the new line after verifying it's safe to do so
-	MOV  [R0], R2
-	CALL image_Draw      ; draws the meteor in the new position
-
-meteor_Move_Return:
-	POP  R3
-	POP  R2
-	POP  R1
-	POP  R0
-	RET
-
-; ----------------------------------------------------------------------------
-; meteor_Reset: Resets the meteor's starting position.
-; ----------------------------------------------------------------------------
-
-meteor_Reset:
-	PUSH R0
-	PUSH R1
-
-	MOV  R0, BAD_METEOR_GIANT
-	MOV  R1, 002CH
-	MOV  [R0], R1 ; resets a meteor's X current position to the starting position
-	ADD  R0, NEXT_WORD
-	MOV  R1, METEOR_START_POS_Y
-	MOV  [R0], R1 ; resets a meteor's Y current position to the starting position
-
-	POP  R1
-	POP  R0
-	RET
 
 ;=============================================================================
 ; MISCELLANIOUS: various routines that don't fit a specific category.
