@@ -1,7 +1,7 @@
 {
   "comment" : "This is a JSON file describing a digital circuit, which can be loaded into the SEPE (Simulador Especial Para Ensino), a computer architecture simulator.",
-  "savedWithSimulatorVersion" : "2.1.1",
-  "savedWithSimulatorBuildOn" : "2022-05-17  at  09:06:02",
+  "savedWithSimulatorVersion" : "2.1.3",
+  "savedWithSimulatorBuildOn" : "2022-05-27  at  13:52:58",
   "editorLocked" : true,
   "startAutomatically" : true,
   "showConnectionColors" : false,
@@ -28,7 +28,7 @@
       "sourcePinID" : 29,
       "targetPinID" : 39,
       "points" : [ {
-        "X" : 395,
+        "X" : 396,
         "Y" : 439
       }, {
         "X" : 420,
@@ -50,7 +50,7 @@
       "sourcePinID" : 30,
       "targetPinID" : 40,
       "points" : [ {
-        "X" : 395,
+        "X" : 396,
         "Y" : 459
       }, {
         "X" : 436,
@@ -97,7 +97,7 @@
         "X" : 805,
         "Y" : 207
       }, {
-        "X" : 406,
+        "X" : 394,
         "Y" : 207
       } ]
     }, {
@@ -113,7 +113,7 @@
         "X" : 720,
         "Y" : 207
       }, {
-        "X" : 406,
+        "X" : 394,
         "Y" : 207
       } ]
     }, {
@@ -129,7 +129,7 @@
         "X" : 720,
         "Y" : 207
       }, {
-        "X" : 406,
+        "X" : 394,
         "Y" : 207
       } ]
     } ]
@@ -145,7 +145,7 @@
         "X" : 805,
         "Y" : 227
       }, {
-        "X" : 405,
+        "X" : 393,
         "Y" : 227
       } ]
     }, {
@@ -161,14 +161,14 @@
         "X" : 672,
         "Y" : 227
       }, {
-        "X" : 405,
+        "X" : 393,
         "Y" : 227
       } ]
     }, {
       "sourcePinID" : 10,
       "targetPinID" : 106,
       "points" : [ {
-        "X" : 405,
+        "X" : 393,
         "Y" : 227
       }, {
         "X" : 672,
@@ -199,7 +199,7 @@
         "X" : 805,
         "Y" : 247
       }, {
-        "X" : 406,
+        "X" : 394,
         "Y" : 247
       } ]
     }, {
@@ -215,7 +215,7 @@
         "X" : 752,
         "Y" : 247
       }, {
-        "X" : 406,
+        "X" : 394,
         "Y" : 247
       } ]
     }, {
@@ -231,7 +231,7 @@
         "X" : 752,
         "Y" : 247
       }, {
-        "X" : 406,
+        "X" : 394,
         "Y" : 247
       } ]
     }, {
@@ -247,7 +247,7 @@
         "X" : 752,
         "Y" : 247
       }, {
-        "X" : 406,
+        "X" : 394,
         "Y" : 247
       } ]
     } ]
@@ -275,7 +275,7 @@
         "X" : 488,
         "Y" : 127
       }, {
-        "X" : 405,
+        "X" : 393,
         "Y" : 127
       } ]
     }, {
@@ -297,7 +297,7 @@
         "X" : 488,
         "Y" : 127
       }, {
-        "X" : 405,
+        "X" : 393,
         "Y" : 127
       } ]
     }, {
@@ -319,7 +319,7 @@
         "X" : 488,
         "Y" : 127
       }, {
-        "X" : 405,
+        "X" : 393,
         "Y" : 127
       } ]
     }, {
@@ -335,7 +335,7 @@
         "X" : 756,
         "Y" : 127
       }, {
-        "X" : 405,
+        "X" : 393,
         "Y" : 127
       } ]
     }, {
@@ -357,7 +357,7 @@
         "X" : 488,
         "Y" : 127
       }, {
-        "X" : 405,
+        "X" : 393,
         "Y" : 127
       } ]
     }, {
@@ -379,7 +379,7 @@
         "X" : 488,
         "Y" : 127
       }, {
-        "X" : 405,
+        "X" : 393,
         "Y" : 127
       } ]
     } ]
@@ -392,7 +392,7 @@
       "sourcePinID" : 50,
       "targetPinID" : 74,
       "points" : [ {
-        "X" : 949,
+        "X" : 936,
         "Y" : 479
       }, {
         "X" : 1021,
@@ -408,7 +408,7 @@
       "sourcePinID" : 57,
       "targetPinID" : 71,
       "points" : [ {
-        "X" : 944,
+        "X" : 934,
         "Y" : 623
       }, {
         "X" : 973,
@@ -424,7 +424,7 @@
       "sourcePinID" : 64,
       "targetPinID" : 72,
       "points" : [ {
-        "X" : 944,
+        "X" : 934,
         "Y" : 727
       }, {
         "X" : 1096,
@@ -455,7 +455,7 @@
         "X" : 664,
         "Y" : 539
       }, {
-        "X" : 395,
+        "X" : 396,
         "Y" : 539
       } ]
     } ]
@@ -477,7 +477,7 @@
         "X" : 664,
         "Y" : 559
       }, {
-        "X" : 395,
+        "X" : 396,
         "Y" : 559
       } ]
     } ]
@@ -499,7 +499,7 @@
         "X" : 608,
         "Y" : 579
       }, {
-        "X" : 395,
+        "X" : 396,
         "Y" : 579
       } ]
     } ]
@@ -512,7 +512,7 @@
       "sourcePinID" : 19,
       "targetPinID" : 8,
       "points" : [ {
-        "X" : 922,
+        "X" : 915,
         "Y" : 167
       }, {
         "X" : 948,
@@ -527,7 +527,7 @@
         "X" : 696,
         "Y" : 167
       }, {
-        "X" : 405,
+        "X" : 393,
         "Y" : 167
       } ]
     }, {
@@ -546,7 +546,7 @@
         "X" : 692,
         "Y" : 167
       }, {
-        "X" : 405,
+        "X" : 393,
         "Y" : 167
       } ]
     }, {
@@ -562,14 +562,14 @@
         "X" : 696,
         "Y" : 167
       }, {
-        "X" : 405,
+        "X" : 393,
         "Y" : 167
       } ]
     }, {
       "sourcePinID" : 86,
       "targetPinID" : 8,
       "points" : [ {
-        "X" : 922,
+        "X" : 915,
         "Y" : 311
       }, {
         "X" : 948,
@@ -584,7 +584,7 @@
         "X" : 696,
         "Y" : 167
       }, {
-        "X" : 405,
+        "X" : 393,
         "Y" : 167
       } ]
     }, {
@@ -600,7 +600,7 @@
         "X" : 696,
         "Y" : 167
       }, {
-        "X" : 405,
+        "X" : 393,
         "Y" : 167
       } ]
     } ]
@@ -622,7 +622,7 @@
         "X" : 616,
         "Y" : 519
       }, {
-        "X" : 395,
+        "X" : 396,
         "Y" : 519
       } ]
     } ]
@@ -644,7 +644,7 @@
         "X" : 592,
         "Y" : 499
       }, {
-        "X" : 395,
+        "X" : 396,
         "Y" : 499
       } ]
     } ]
@@ -657,7 +657,7 @@
       "sourcePinID" : 96,
       "targetPinID" : 2,
       "points" : [ {
-        "X" : 154,
+        "X" : 153,
         "Y" : 119
       }, {
         "X" : 192,
@@ -679,7 +679,7 @@
       "sourcePinID" : 99,
       "targetPinID" : 3,
       "points" : [ {
-        "X" : 135,
+        "X" : 131,
         "Y" : 183
       }, {
         "X" : 253,
@@ -695,7 +695,7 @@
       "sourcePinID" : 102,
       "targetPinID" : 4,
       "points" : [ {
-        "X" : 143,
+        "X" : 142,
         "Y" : 247
       }, {
         "X" : 192,
@@ -717,11 +717,7 @@
     "moduleDelay" : 5,
     "positionX" : 258,
     "positionY" : 112,
-    "simGuiVisibleInSimulation" : true,
-    "simGuiXRelative" : 0,
-    "simGuiYRelative" : 0,
-    "simGuiWidth" : 798,
-    "simGuiHeight" : 886,
+    "simGuiVisibleInSimulation" : false,
     "clockPeriod" : 200,
     "startAutomatically" : false,
     "simulationMaster" : true,
@@ -751,7 +747,6 @@
       "pinValueFixed" : "1"
     },
     "nTabSpaces" : 4,
-    "textEncoding" : "UTF-8",
     "bus interface" : {
       "className" : "ModuleExtensionMasterBusReadWrite",
       "elementID" : 104,
@@ -1431,11 +1426,7 @@
     "moduleDelay" : 5,
     "positionX" : 978,
     "positionY" : 608,
-    "simGuiVisibleInSimulation" : true,
-    "simGuiXRelative" : 835,
-    "simGuiYRelative" : 429,
-    "simGuiWidth" : 166,
-    "simGuiHeight" : 187,
+    "simGuiVisibleInSimulation" : false,
     "columns" : 4,
     "key numbers radix" : "Hexadecimal",
     "key color" : "Default",
@@ -1474,11 +1465,7 @@
     "moduleDelay" : 5,
     "positionX" : 1026,
     "positionY" : 464,
-    "simGuiVisibleInSimulation" : true,
-    "simGuiXRelative" : 424,
-    "simGuiYRelative" : 259,
-    "simGuiWidth" : 265,
-    "simGuiHeight" : 212,
+    "simGuiVisibleInSimulation" : false,
     "nHexaDigits" : 3,
     "onColor" : "Red",
     "zColor" : "Black_White",
@@ -1502,36 +1489,51 @@
     "moduleDelay" : 5,
     "positionX" : 810,
     "positionY" : 296,
-    "simGuiVisibleInSimulation" : true,
-    "simGuiXRelative" : 819,
-    "simGuiYRelative" : 0,
-    "simGuiWidth" : 1024,
-    "simGuiHeight" : 512,
+    "simGuiVisibleInSimulation" : false,
     "columnAddressNBits" : 6,
     "lineAddressNBits" : 5,
     "windowScreenWidthPixels" : 1024,
     "windowScreenHeightixels" : 512,
     "defaultPenColor" : 51063,
+    "image paths" : [ "mediacenter/space_background.png", "mediacenter/pause.png" ],
     "sounds/videos settings" : [ {
-      "filePathName" : "mediacenter\\missile_shoot.wav",
+      "filePathName" : "mediacenter/game_menu.mp4",
       "relative sound volume" : 1.0,
       "relative start time" : 0.0,
       "relative stop time" : 1.0,
       "playAsClip" : false
     }, {
-      "filePathName" : "mediacenter\\game_menu.mp4",
+      "filePathName" : "mediacenter/game_start.mp4",
       "relative sound volume" : 1.0,
       "relative start time" : 0.0,
       "relative stop time" : 1.0,
       "playAsClip" : false
     }, {
-      "filePathName" : "mediacenter\\game_start.mp4",
+      "filePathName" : "mediacenter/game_over_energy.mp4",
       "relative sound volume" : 1.0,
       "relative start time" : 0.0,
       "relative stop time" : 1.0,
       "playAsClip" : false
     }, {
-      "filePathName" : "mediacenter\\no more energy.mp4",
+      "filePathName" : "mediacenter/restarting energy.mp4",
+      "relative sound volume" : 1.0,
+      "relative start time" : 0.0,
+      "relative stop time" : 1.0,
+      "playAsClip" : false
+    }, {
+      "filePathName" : "mediacenter/game_over_meteor.mp4",
+      "relative sound volume" : 1.0,
+      "relative start time" : 0.0,
+      "relative stop time" : 1.0,
+      "playAsClip" : false
+    }, {
+      "filePathName" : "mediacenter/restarting meteor.mp4",
+      "relative sound volume" : 1.0,
+      "relative start time" : 0.0,
+      "relative stop time" : 1.0,
+      "playAsClip" : false
+    }, {
+      "filePathName" : "mediacenter/missile_shoot.wav",
       "relative sound volume" : 1.0,
       "relative start time" : 0.0,
       "relative stop time" : 1.0,

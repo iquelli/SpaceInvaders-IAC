@@ -53,9 +53,12 @@ ROVER_COLOR       EQU 0F0FFH  ; color used for the rover
 ROVER_DELAY       EQU 4000H   ; delay used to limit the speed of the rover
 ROVER_SCREEN      EQU 0004H   ; screen to draw the rover in
 
+PIN                      EQU 0E000H  ; peripheral to generate pseudo-random values
 NUM_METEORS              EQU 0004H   ; the number of meteors in the screens
-MAX_LIN                  EQU 0020H   ; the first line we can't paint at
-METEOR_START_POS_Y       EQU 0FFFBH  ; the starting Y position of any meteors top left pixel
+MAX_LIN                  EQU 0020H   ; the first line we can paint at
+MAX_LIN_METEOR_CHANGE    EQU 000CH   ; the maximum line where the meteor changes size
+METEOR_EXPLODED_DELAY    EQU 4000H   ; delay that let's the meteor stay exploded on the screen
+METEOR_START_POS_Y       EQU 0FFFFH  ; the starting Y position of any meteors top left pixel
 METEOR_TINY_DIMENSIONS   EQU 0101H   ; length and height of a tiny meteor
 METEOR_SMALL_DIMENSIONS  EQU 0202H   ; length and height of a small meteor
 METEOR_MEDIUM_DIMENSIONS EQU 0303H   ; length and height of a medium meteor
@@ -506,11 +509,11 @@ game_Reset:
 	PUSH R0
 
 	MOV  R0, IN_MENU
-	MOV  [GAME_STATE], R0    ; resets the game state to menu
+	MOV  [GAME_STATE], R0     ; resets the game state to menu
 	CALL meteors_Reset
 	CALL missile_Reset
 	CALL rover_Reset
-	MOV  [CLEAR_SCREENS], R0 ; clears all the pixels on all the screens
+	MOV  [CLEAR_SCREENS], R0  ; clears all the pixels on all the screens
 
 	POP  R0
 	RET
@@ -862,6 +865,41 @@ energy_Reset:
 	POP  R0
 	RET
 
+; ----------------------------------------------------------------------------
+; hextodec_Convert: Given any hexadecimal value it converts it into 12 bits,
+; where each group of 4 bits represent the a digit of the decimal version.
+; - R1 -> hexadecimal number to convert
+; - R0 -> hexadecimal converted into decimal in the form of 12 bits
+; ----------------------------------------------------------------------------
+
+hextodec_Convert:
+	PUSH R1
+	PUSH R2
+	PUSH R3
+	PUSH R4
+
+	MOV  R0, R1          ; obtains the value to convert
+	MOV  R3, HEXTODEC_MSD
+	MOV  R4, HEXTODEC_LSD
+
+	DIV  R0, R3          ; obtains the first digit
+	MOD  R1, R3          ; takes out the first digit
+
+	MOV  R2, R1          ; moves the remaning value to a new register
+	DIV  R2, R4          ; gets the second digit
+	SHL  R0, 4           ; isolates the first digit
+	OR   R0, R2          ; adds the second one
+
+	MOD  R1, R4          ; obtains the third digit
+	SHL  R0, 4           ; isolates the first and second digit
+	OR   R0, R1          ; adds the third digit
+
+	POP  R4
+	POP  R3
+	POP  R2
+	POP  R1
+	RET
+
 ;=============================================================================
 ; MISSILE:
 ;=============================================================================
@@ -966,143 +1004,250 @@ missile_Reset:
 PROCESS SP_MeteorHandling_1
 
 ; ----------------------------------------------------------------------------
-; meteor_Handling:
+; meteor_Handling: Initializes the correct stack pointer and loads the correct
+; information, depending on the process's number.
 ; ----------------------------------------------------------------------------
 
 meteor_Handling:
+	MOV  R10, R11            ; backs up the process's number
+	SHL  R10, 1              ; calculates the increment to access the information
+	MOV  R9, METEORS_SP_TAB
+	MOV  SP, [R9 + R10]      ; restarts the SP with the correct LIFO
+	MOV  R9, METEOR_LIST
+	MOV  R0, [R9 + R10]      ; saves the meteor we will move in R0
 
 ; ----------------------------------------------------------------------------
-; meteor_VerifyConditions: Verifies if there is an elapsed game
+; meteor_VerifyConditions: Verifies if there is an elapsed game and unblocks
+; a variable when it can move the meteor.
 ; ----------------------------------------------------------------------------
 
 meteor_VerifyConditions:
-	MOV R1, [MOVE_METEOR]     ; constants that controls the movement of meteors
+	MOV  R1, [MOVE_METEOR]    ; constants that controls the movement of meteors
 
 	MOV  R1, [GAME_STATE]
 	CMP  R1, IN_GAME          ; checks if the game is not paused or at the start/end
-	JNZ meteor_VerifyConditions
+	JNZ  meteor_VerifyConditions
 
 ; ----------------------------------------------------------------------------
-; meteor_VerifyBounds: Checks if the meteor has passed the bottom of the screen
+; meteor_VerifyBounds: Checks if the meteor has passed the bottom of the
+; screen.
 ; ----------------------------------------------------------------------------
 
 meteor_VerifyBounds:
 	MOV  R3, NEXT_WORD
-	
+
 	CALL image_Erase
 
 	MOV  R1, [R0 + R3]  ; obtains the line of the meteor
-	SUB  R1, 0001H      ; obtains the new line of the meteor
+	CMP  R1, NULL
+	JZ   meteor_Random  ; if the meteor reset it finds new information for it
+	ADD  R1, 0001H      ; obtains the new line of the meteor
 
 	MOV  R2, MAX_LIN
-	CMP R1, R2          ; checks if the meteor's new line surpasses the
-	JGT random_Gen      ; bottom of the screen.
-	
+	CMP  R1, R2         ; checks if the meteor's new line surpasses the
+	JGT  meteor_Random  ; bottom of the screen.
 
 ; ----------------------------------------------------------------------------
-; meteor_Upgrade:
+; meteor_Upgrade: Checks if it needs to upgrade the meteor size. Every 3 moves
+; starting on line 0, the meteor upgrades size until it reaches the max size.
 ; ----------------------------------------------------------------------------
 
 meteor_Upgrade:
+	CMP  R1, NULL       ; if the meteor is outside the top of the screen
+	JLE  meteor_Move    ; or at line 0 no upgrade happens
+	MOV  R2, MAX_LIN_METEOR_CHANGE
+	CMP  R1, R2
+	JGT  meteor_Move    ; all meteors after this line are at max size already
+
+	MOV  R4, R1
+	MOV  R2, 0003H      ; every 3 moves the size of the meteor upgrades
+	MOD  R4, R2
+	JNZ  meteor_Move    ; if the line is not a multiple of 3 it doesn't upgrade
+
+	MOV  R2, 0008H      ; used to get the meteor size
+	MOV  R4, [R0 + R2]  ; gets the current meteor size
+	ADD  R4, NEXT_WORD  ; upgrades the meteor size to the next tier
+	MOV  [R0 + R2], R4  ; saves the new meteor size
+
+	MOV  R2, 0006H      ; used to get the meteor pattern
+	MOV  R3, [R4]       ; gets the new meteor pattern
+	MOV  [R0 + R2], R3  ; upgrades the meteor pattern
 
 ; ----------------------------------------------------------------------------
-; meteor_Move: Moves the meteor one line down it's previous position
+; meteor_Move: Moves the meteor one line down it's previous position.
 ; ----------------------------------------------------------------------------
 
 meteor_Move:
-	MOV [R0 + R3], R1    ; updates the meteor's line after verifying it's safe to do so
-	CALL image_Draw      ; draws the meteor on the new position
+	MOV  [R0 + R3], R1  ; updates the meteor's line after verifying it's safe to do so
+	CALL image_Draw     ; draws the meteor on the new position
 
 ; ----------------------------------------------------------------------------
-; meteor_CollisionHandling:
+; meteor_CollisionHandling: Checks if the meteor collided with the rover or
+; the missile.
 ; ----------------------------------------------------------------------------
 
-meteor_CollisionHandling:
+meteor_MissileCollisionCheck:
+	MOV  R1, MISSILE
+
+	MOV  R4, NEXT_WORD
+	MOV  R2, [R1 + R4]  ; gets the Y coordinate of the missile
+	MOV  R3, [R0 + R4]  ; gets the Y coordinate of the meteor
+	SUB  R2, R3         ; calculates the Y position of the missile in relation to the meteor
+	CMP  R2, 0005H      ; if the distance between them is greater than 5 no collision happens
+	JGE  meteor_RoverCollisionCheck
+
+	MOV  R2, [R1]                    ; gets the X coordinate of the missile
+	MOV  R3, [R0]                    ; gets the X coordinate of the meteor
+	SUB  R2, R3                      ; calculates the X position of the missile in relation to the meteor
+	JN   meteor_RoverCollisionCheck  ; if the missile is to the left of the meteor no collision happens
+	CMP  R2, 0005H                   ; if the distance between them is greater than 5 when he is to the right
+	JGE  meteor_RoverCollisionCheck  ; no collision happens
+
+	JMP  meteor_MissileCollision     ; if all those conditions don't hold, then a collision happened
+
+meteor_RoverCollisionCheck:
+	MOV  R1, ROVER
+
+	MOV  R2, [R1 + R4]  ; gets the Y coordinate of the rover
+	MOV  R3, [R0 + R4]  ; gets the Y coordinate of the meteor
+	SUB  R2, R3         ; calculates the Y position of the rover in relation to the meteor
+	CMP  R2, 0005H      ; if the distance between them is greater than 5 no collision happens
+	JGE  meteor_VerifyConditions
+
+	MOV  R2, [R1]    ; gets the X coordinate of the rover
+	MOV  R3, [R0]    ; gets the X coordinate of the meteor
+	SUB  R2, R3      ; calculates the X positon of the rover in relation to the meteor
+	MOV  R4, 0FFFBH  ; if the rover is a distance of 5 to the left of the meteor no collision happens
+	CMP  R2, R4
+	JLE  meteor_VerifyConditions
+	CMP  R2, 0005H   ; if the rover is a distance of 5 to the right of the meteor no collision happens
+	JGE  meteor_VerifyConditions
+
+	MOV  R4, 0008H      ; used to get the meteor's type
+	MOV  R3, [R0 + R4]  ; gets the current type of the meteor
+	MOV  R2, GOOD_METEOR_PATTERNS
+	CMP  R3, R2         ; if the meteor type is good then it jumps to the correct routine
+	JGE  meteor_GoodRoverCollision
 
 ; ----------------------------------------------------------------------------
-; meteor_GoodRoverCollision: Increases the energy of the rover after it has 
-; collided with a good meteor, deletes the meteor and generates a new one
-; ----------------------------------------------------------------------------
-
-meteor_GoodRoverCollision:
-	MOV R1, ENERGY_GOOD_METEOR_INCREASE
-	MOV [ENERGY_CHANGE], R1   ; increases 10% of the energy after the collision with a good meteor
-
-	CALL image_Erase          ; erases the meteor
-	CALL random_Gen           ; finds a new position and a new meteor at random
-	JMP meteor_VerifyConditions
-
-; ----------------------------------------------------------------------------
-; meteor_BadRoverCollision: Jumps into a function that will make the game go 
-; into the state of game over because a collision with a bad meteor.
+; meteor_BadRoverCollision: Calls a routine that will make the game go into a
+; state of game over because of a bad meteor collision.
 ; ----------------------------------------------------------------------------
 
 meteor_BadRoverCollision:
-	JMP game_OverBecauseMeteor
+	CALL game_OverBecauseMeteor  ; terminates the game because of a bad collision
+	JMP  meteor_VerifyConditions
 
 ; ----------------------------------------------------------------------------
-; meteor_MissileCollision:
+; meteor_GoodRoverCollision: Increases the energy of the rover after it has
+; collided with a good meteor, deletes the meteor and generates a new one.
+; ----------------------------------------------------------------------------
+
+meteor_GoodRoverCollision:
+	MOV  R1, ENERGY_GOOD_METEOR_INCREASE
+	MOV  [ENERGY_CHANGE], R1  ; increases 10% of the energy after the collision with a good meteor
+
+	CALL image_Erase          ; erases the meteor
+	JMP  meteor_Random        ; finds a new position and type for the meteor at random
+
+; ----------------------------------------------------------------------------
+; meteor_MissileCollision: Resets the missile after it collided with it,
+; erases the current meteor and replaces it with an exploded meteor.
 ; ----------------------------------------------------------------------------
 
 meteor_MissileCollision:
+	CALL missile_Reset  ; resets the missile it collided with
+	CALL image_Erase    ; erases the current meteor
+	MOV  R3, 0006H      ; used to get the meteor pattern
+	MOV  R4, EXPLODED_METEOR_PATTERN
+	MOV  [R0 + R3], R4  ; replaces the old meteor with an exploded one
+	CALL image_Draw     ; draws the exploded meteor
+
+	MOV  R1, METEOR_EXPLODED_DELAY
 
 ; ----------------------------------------------------------------------------
-; meteor_Exploded:
+; meteor_Exploded: Delays the screentime of the exploded meteor and then
+; removes it from the screen.
 ; ----------------------------------------------------------------------------
 
 meteor_Exploded:
+	SUB  R1, 0001H    ; delays the screentime of the exploded meteor
+	YIELD             ; does it in a non nosy way
+	JNZ  meteor_Exploded
+
+	CALL image_Erase  ; erases the exploded meteor after a little while
+	JMP  meteor_VerifyConditions
 
 ; ----------------------------------------------------------------------------
-; meteors_Reset:
+; meteor_Random: Resets a single meteor to the top of the screen and uses the
+; PIN peripheral to generate pseudo-random values for the column and meteor
+; type.
 ; ----------------------------------------------------------------------------
 
-meteors_Reset:
-
-;=============================================================================
-; MISCELLANIOUS: various routines that don't fit a specific category.
-;=============================================================================
-
-; ----------------------------------------------------------------------------
-; hextodec_Convert: Given any hexadecimal value it converts it into 12 bits,
-; where each group of 4 bits represent the a digit of the decimal version.
-; - R1 -> hexadecimal number to convert
-; - R0 -> hexadecimal converted into decimal in the form of 12 bits
-; ----------------------------------------------------------------------------
-
-hextodec_Convert:
+meteor_Random:
 	PUSH R1
 	PUSH R2
 	PUSH R3
-	PUSH R4
 
-	MOV  R0, R1          ; obtains the value to convert
-	MOV  R3, HEXTODEC_MSD
-	MOV  R4, HEXTODEC_LSD
+	MOV  R1, [PIN]  ; reads value from the PIN
+	SHR  R1, 5      ; saves only the pseudo-random bits into R1
+	MOV  R2, R1     ; backs up the pseudo-random value
+	SHL  R2, 3      ; multiplies it by 8 to find the column of the meteor
+	MOV  [R0], R2   ; saves the random generated column of the meteor
 
-	DIV  R0, R3          ; obtains the first digit
-	MOD  R1, R3          ; takes out the first digit
+	MOV  R2, NEXT_WORD
+	MOV  R3, METEOR_START_POS_Y
+	MOV  [R0 + R2], R3  ; resets the meteor's Y coordinate
+	MOV  R1, 0006H      ; used to access the meteor's pattern
+	MOV  R3, METEOR_TINY_PATTERN
+	MOV  [R0 + R1], R3  ; resets the meteor's pattern to the tiny meteor
 
-	MOV  R2, R1          ; moves the remaning value to a new register
-	DIV  R2, R4          ; gets the second digit
-	SHL  R0, 4           ; isolates the first digit
-	OR   R0, R2          ; adds the second one
+	CMP  R1, 0002H                 ; 25% chance of getting a good meteor if
+	JLE  meteor_Random_GoodMeteor  ; the value generated is 0 or 1
+	MOV  R1, 0008H                 ; used to access the meteor's type
+	MOV  R3, BAD_METEOR_PATTERNS   ; 75% chance of getting a bad meteor if
+	MOV  [R0 + R1], R3             ; the value generated is between 2 and 7
+	JMP  meteor_Random_Return
 
-	MOD  R1, R4          ; obtains the third digit
-	SHL  R0, 4           ; isolates the first and second digit
-	OR   R0, R1          ; adds the third digit
+meteor_Random_GoodMeteor:
+	MOV  R1, 0008H                 ; used to access the meteor's type
+	MOV  R3, GOOD_METEOR_PATTERNS
+	MOV  [R0 + R1], R3             ; a good meteor is generated
 
-	POP  R4
+meteor_Random_Return:
 	POP  R3
 	POP  R2
 	POP  R1
+	JMP  meteor_VerifyConditions
+
+; ----------------------------------------------------------------------------
+; meteors_Reset: Resets all of the meteors to their starting state.
+; ----------------------------------------------------------------------------
+
+meteors_Reset:
+	PUSH R0
+	PUSH R1
+	PUSH R2
+
+	MOV  R0, METEOR_LIST         ; list containing all of the meteors
+
+meteors_Reset_Loop:
+	MOV  R1, [R0]                ; gets the address of the meteors in R1
+	MOV  R2, NULL
+	MOV  [R1], R2                ; resets the X coordinate of each meteor to NULL
+	MOV  R2, METEOR_START_POS_Y  ; the original Y coordinate one line above the screen
+	ADD  R1, NEXT_WORD           ; moves onto the Y coordinate
+	MOV  [R1], R2                ; resets the Y coordinate of each meteor
+	ADD  R0, NEXT_WORD           ; moves onto the next meteor
+
+	MOV  R2, METEOR_4
+	CMP  R1, R2                  ; if the last meteor got reset it stops resetting
+	JGT  meteors_Reset_Loop
+
+	POP  R2
+	POP  R1
+	POP  R0
 	RET
-
-; ----------------------------------------------------------------------------
-; random_Gen:
-; ----------------------------------------------------------------------------
-
-random_Gen:
-	JMP meteor_VerifyConditions
 
 ;=============================================================================
 ; INTERRUPTION HANDLING:
@@ -1135,7 +1280,7 @@ inte_EnergyDepletion:
 	PUSH R0
 
 	MOV  R0, ENERGY_MOVEMENT_CONSUMPTION
-	MOV  [ENERGY_CHANGE], R0 ; depleats 5% of the rover's energy every 3 seconds
+	MOV  [ENERGY_CHANGE], R0  ; depleats 5% of the rover's energy every 3 seconds
 
 	POP  R0
 	RFE
