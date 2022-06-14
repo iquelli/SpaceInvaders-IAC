@@ -90,6 +90,8 @@ NEXT_BYTE    EQU 0001H  ; value that a byte occupies at an address
 
 PLACE 1000H
 
+MENU_ANIMATION: WORD NULL ; variable that controls what animation will be played next
+
 GAME_STATE: WORD IN_MENU  ; variable that stores the current game state
 
 KEY_PRESSED:  LOCK NULL  ; value of the key initially pressed on the current loop
@@ -374,7 +376,9 @@ game_Menu:
 
 	MOV  R0, 0
 	MOV  [VIDEO_CYCLE], R0  ; plays the starting menu video on a cycle
-	MOV  R3, 1
+	ADD R0, 1
+
+	MOV  [MENU_ANIMATION], R0
 
 	POP  R0
 	RET
@@ -396,7 +400,8 @@ game_Init:
 	CALL energy_Reset
 
 	MOV  [VIDEO_STOP], R0         ; stops the previous video that was playing (value of R0 doesn't matter)
-	MOV  [VIDEO_PLAY], R3         ; plays the game starting video
+	MOV R0, [MENU_ANIMATION]
+	MOV  [VIDEO_PLAY], R0         ; plays the game starting video
 
 game_Init_WaitAnimation:
 	MOV R0, [VIDEO_STATE]         ; obtains the state of the video
@@ -458,7 +463,6 @@ game_PauseHandling_Return:
 game_OverBecauseEnergy:
 	PUSH R0
 	MOV  R0, 2  ; plays the game over (energy) video
-	MOV  R3, 3  ; sets the next video to transition to
 	JMP  game_Over
 
 ; ----------------------------------------------------------------------------
@@ -469,7 +473,6 @@ game_OverBecauseEnergy:
 game_OverBecauseMeteor:
 	PUSH R0
 	MOV  R0, 4  ; plays the game over (meteor) video
-	MOV  R3, 5  ; sets the next video to transition to
 	JMP  game_Over
 
 ; ----------------------------------------------------------------------------
@@ -494,6 +497,8 @@ game_End:
 game_Over:
 	CALL game_Reset
 	MOV  [VIDEO_CYCLE], R0  ; plays the actual video
+	ADD R0, 1
+	MOV [MENU_ANIMATION], R0
 
 game_Over_Return:
 	POP  R0
