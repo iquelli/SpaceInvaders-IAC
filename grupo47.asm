@@ -50,7 +50,7 @@ ROVER_START_POS_X EQU 0020H   ; the starting X position of the rover's top left 
 ROVER_START_POS_Y EQU 001CH   ; the starting Y position of the rover's top left pixel
 ROVER_DIMENSIONS  EQU 0504H   ; length and height of the rover
 ROVER_COLOR       EQU 0F0FFH  ; color used for the rover
-ROVER_DELAY       EQU 4000H   ; delay used to limit the speed of the rover
+ROVER_DELAY       EQU 0400H   ; delay used to limit the speed of the rover
 ROVER_SCREEN      EQU 0004H   ; screen to draw the rover in
 
 PIN                      EQU 0E000H  ; peripheral to generate pseudo-random values
@@ -319,6 +319,7 @@ init:
 	EI0
 	EI1
 	EI2
+	EI
 
 	CALL key_Sweeper
 	MOV  R11, NUM_METEORS
@@ -354,6 +355,7 @@ game_Handling:
 	JN   main       ; if the key is before C it does nothing
 	CMP  R0, 0002H
 	JGT  main       ; if the key is after E it does nothing
+	SHL  R0, 1      ; each WORD occupies two addresses
 
 	MOV  R1, GAME_MANUAL_CHANGE_LIST
 	MOV  R2, [R1 + R0]  ; gets the right routine to call
@@ -413,7 +415,6 @@ game_Init_Draw:
 
 game_Init_Return:
 	POP  R0
-	EI
 	RET
 
 ; ----------------------------------------------------------------------------
@@ -427,27 +428,25 @@ game_PauseHandling:
 
 	MOV  R0, [GAME_STATE]
 	CMP  R0, IN_GAME
-	JZ   game_Pause         ; if it's in a game it pauses it
+	JZ   game_Pause                 ; if it's in a game it pauses it
 	CMP  R0, IN_PAUSE
-	JZ   game_Unpause       ; if it's paused it unpauses the game
-	JMP  game_Pause_Return  ; if the program is in any other state it does nothing
+	JZ   game_Unpause               ; if it's paused it unpauses the game
+	JMP  game_PauseHandling_Return  ; if the program is in any other state it does nothing
 
 game_Pause:
-	DI
 	MOV  R0, 1
 	MOV  [SELECT_FOREGROUND], R0  ; puts a pause button on the screen
 	MOV  R0, IN_PAUSE
 	MOV  [GAME_STATE], R0         ; changes the game state to paused
-	JMP  game_Pause_Return
+	JMP  game_PauseHandling_Return
 
 game_Unpause:
 	MOV  R0, 1
 	MOV  [DELETE_FOREGROUND], R0  ; deletes the pause button from the screen
 	MOV  R0, IN_GAME
 	MOV  [GAME_STATE], R0         ; changes the game state to in game
-	EI
 
-game_Pause_Return:
+game_PauseHandling_Return:
 	POP  R0
 	RET
 
@@ -493,7 +492,6 @@ game_End:
 ; ----------------------------------------------------------------------------
 
 game_Over:
-	DI
 	CALL game_Reset
 	MOV  [VIDEO_CYCLE], R0  ; plays the actual video
 
@@ -689,9 +687,9 @@ image_Draw_Return:
 pixel_Draw:
 	JNC  pixel_Draw_Return      ; if the carry is not 1, pixel is not colored
 
-	MOV  [DEF_PIXEL_WRITE], R5  ; colors the pixel
 	MOV  [DEF_COL], R6          ; sets the column of the pixel
 	MOV  [DEF_LIN], R7          ; sets the line of the pixel
+	MOV  [DEF_PIXEL_WRITE], R5  ; colors the pixel
 
 pixel_Draw_Return:
 	RET
@@ -707,7 +705,7 @@ image_Erase:
 	PUSH R2
 	PUSH R3
 
-	MOV  R2, 0004H
+	MOV  R2, 0006H
 	MOV  R1, [R0 + R2]  ; obtains the pattern information of the object
 
 	ADD  R1, NEXT_WORD
@@ -1034,14 +1032,12 @@ meteor_VerifyConditions:
 ; ----------------------------------------------------------------------------
 
 meteor_VerifyBounds:
-	MOV  R3, NEXT_WORD
-
-	CALL image_Erase
-
-	MOV  R1, [R0 + R3]  ; obtains the line of the meteor
+	MOV  R1, [R0]       ; obtains the line of the meteor
 	CMP  R1, NULL
 	JZ   meteor_Random  ; if the meteor reset it finds new information for it
 	ADD  R1, 0001H      ; obtains the new line of the meteor
+
+	CALL image_Erase
 
 	MOV  R2, MAX_LIN
 	CMP  R1, R2         ; checks if the meteor's new line surpasses the
@@ -1078,6 +1074,7 @@ meteor_Upgrade:
 ; ----------------------------------------------------------------------------
 
 meteor_Move:
+	MOV  R3, NEXT_WORD
 	MOV  [R0 + R3], R1  ; updates the meteor's line after verifying it's safe to do so
 	CALL image_Draw     ; draws the meteor on the new position
 
