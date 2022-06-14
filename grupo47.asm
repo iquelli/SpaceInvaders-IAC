@@ -69,10 +69,11 @@ BAD_METEOR_COLOR         EQU 0FF00H  ; color used for bad meteors
 GOOD_METEOR_COLOR        EQU 0F0F0H  ; color used for good meteors
 EXPLODED_METEOR_COLOR    EQU 0F00FH  ; color used for an exploded meteor
 
-MISSILE_DIMENSIONS EQU 0101H   ; length and height of the missile
-MISSILE_COLOR      EQU 0F0F0H  ; color of the missile
-MAX_MISSILE_LINE   EQU 0011H   ; maximum line the missile can go
-MISSILE_SCREEN     EQU 0004H   ; screen to draw the missile in
+MISSILE_DIMENSIONS  EQU 0101H   ; length and height of the missile
+MISSILE_START_POS_Y EQU 001BH   ; the starting Y position of the missile's top left pixel
+MISSILE_COLOR       EQU 0F0F0H  ; color of the missile
+MAX_MISSILE_LINE    EQU 0011H   ; maximum line the missile can go
+MISSILE_SCREEN      EQU 0004H   ; screen to draw the missile in
 
 IN_MENU    EQU 0000H  ; value when the user is in a menu
 IN_GAME    EQU 0001H  ; value when the user is in a game
@@ -90,9 +91,8 @@ NEXT_BYTE    EQU 0001H  ; value that a byte occupies at an address
 
 PLACE 1000H
 
-MENU_ANIMATION: WORD NULL ; variable that controls what animation will be played next
-
-GAME_STATE: WORD IN_MENU  ; variable that stores the current game state
+GAME_STATE:     WORD IN_MENU  ; variable that stores the current game state
+MENU_ANIMATION: WORD 0001H    ; variable that controls what animation will be played next
 
 KEY_PRESSED:  LOCK NULL  ; value of the key initially pressed on the current loop
 KEY_PRESSING: LOCK NULL  ; value of the key that is currently being held down
@@ -166,7 +166,7 @@ ROVER_PATTERN:
 	WORD 5000H
 
 MISSILE:
-	WORD NULL, NULL
+	WORD NULL, MISSILE_START_POS_Y
 	WORD MISSILE_SCREEN
 	WORD MISSILE_PATTERN
 
@@ -318,7 +318,7 @@ init:
 
 	CALL game_Menu
 
-	EI0
+	;EI0
 	EI1
 	EI2
 	EI
@@ -360,9 +360,8 @@ game_Handling:
 	SHL  R0, 1      ; each WORD occupies two addresses
 
 	MOV  R1, GAME_MANUAL_CHANGE_LIST
-	MOV  R2, [R1 + R0]  ; gets the right routine to call
-	CALL R2             ; calls the routine needed for the change in the game state
-	JMP  main
+	MOV  R2, [R1 + R0]  ; gets the right label to jump to
+	JMP  R2             ; jumps to the label needed for the change in the game state
 
 ; ----------------------------------------------------------------------------
 ; game_Menu: Resets the information about previous games and shows the
@@ -376,9 +375,6 @@ game_Menu:
 
 	MOV  R0, 0
 	MOV  [VIDEO_CYCLE], R0  ; plays the starting menu video on a cycle
-	ADD R0, 1
-
-	MOV  [MENU_ANIMATION], R0
 
 	POP  R0
 	RET
@@ -391,8 +387,6 @@ game_Menu:
 ; ----------------------------------------------------------------------------
 
 game_Init:
-	PUSH R0
-
 	MOV  R0, [GAME_STATE]
 	CMP  R0, IN_MENU              ; only starts a new game when it's on a menu
 	JNZ  game_Init_Return
@@ -400,14 +394,15 @@ game_Init:
 	CALL energy_Reset
 
 	MOV  [VIDEO_STOP], R0         ; stops the previous video that was playing (value of R0 doesn't matter)
-	MOV R0, [MENU_ANIMATION]
-	MOV  [VIDEO_PLAY], R0         ; plays the game starting video
+	MOV  R3, [MENU_ANIMATION]     ; gets the video to transition to
+	MOV  [VIDEO_PLAY], R3         ; plays the game starting video
 
 game_Init_WaitAnimation:
-	MOV R0, [VIDEO_STATE]         ; obtains the state of the video
+	MOV  R0, [VIDEO_STATE]         ; obtains the state of the video
 
-	CMP R0, NULL                  ; checks if the animation has stopped playing
-	JNZ game_Init_WaitAnimation   ; keeps going up until the animation has ended
+	CMP  R0, NULL                  ; checks if the animation has stopped playing
+	YIELD                          ; does a loop without being nosy
+	JNZ  game_Init_WaitAnimation   ; keeps going up until the animation has ended
 
 game_Init_Draw:
 	MOV  R0, 0
@@ -419,8 +414,7 @@ game_Init_Draw:
 	MOV  [GAME_STATE], R0         ; because a new game is about to begin
 
 game_Init_Return:
-	POP  R0
-	RET
+	JMP  main
 
 ; ----------------------------------------------------------------------------
 ; game_PauseHandling: Pauses the game, by putting a pause button on the
@@ -429,8 +423,6 @@ game_Init_Return:
 ; ----------------------------------------------------------------------------
 
 game_PauseHandling:
-	PUSH R0
-
 	MOV  R0, [GAME_STATE]
 	CMP  R0, IN_GAME
 	JZ   game_Pause                 ; if it's in a game it pauses it
@@ -452,8 +444,26 @@ game_Unpause:
 	MOV  [GAME_STATE], R0         ; changes the game state to in game
 
 game_PauseHandling_Return:
-	POP  R0
-	RET
+	JMP  main
+
+; ----------------------------------------------------------------------------
+; game_End: Indicates the video to play when the user terminates the game
+; manually.
+; ----------------------------------------------------------------------------
+
+game_End:
+	MOV  R0, [GAME_STATE]
+	CMP  R0, IN_GAME        ; only if the program is in a game it can end a game
+	JNZ  game_End_Return
+
+	CALL game_Reset
+	MOV  R0, 0
+	MOV  [VIDEO_CYCLE], R0  ; plays the ending game video
+	MOV  R3, 1              ; sets the next to transition to
+	MOV  [MENU_ANIMATION], R3
+
+game_End_Return:
+	JMP  main
 
 ; ----------------------------------------------------------------------------
 ; game_OverBecauseEnergy: Indicates the video to play when the game is over
@@ -476,31 +486,15 @@ game_OverBecauseMeteor:
 	JMP  game_Over
 
 ; ----------------------------------------------------------------------------
-; game_End: Indicates the video to play when the user terminates the game
-; manually.
-; ----------------------------------------------------------------------------
-
-game_End:
-	PUSH R0
-
-	MOV  R0, [GAME_STATE]
-	CMP  R0, IN_MENU  ; only if the program is in a menu it doesn't end a game
-	JZ   game_Over_Return
-
-	MOV  R0, 0        ; plays the ending game video
-	MOV  R3, 1        ; sets the next to transition to
-
-; ----------------------------------------------------------------------------
-; game_Over: Clears the screen and plays of of the game's end screen.
+; game_Over: Clears the screen and plays the game's end screen.
 ; ----------------------------------------------------------------------------
 
 game_Over:
 	CALL game_Reset
-	MOV  [VIDEO_CYCLE], R0  ; plays the actual video
-	ADD R0, 1
-	MOV [MENU_ANIMATION], R0
+	MOV  [VIDEO_CYCLE], R0    ; plays the actual video
+	ADD  R0, 0001H
+	MOV  [MENU_ANIMATION], R0 ; sets the next video to transition to
 
-game_Over_Return:
 	POP  R0
 	RET
 
@@ -820,12 +814,13 @@ PROCESS SP_EnergyHandling
 
 energy_Handling:
 	MOV  R0, [ENERGY_CHANGE]     ; gets the value to increase/decrease the energy of the rover
-	MOV  R1, [ENERGY_HEX]        ; obtains the current energy
-	ADD  R1, R0                  ; adds the current energy with the amount to increase/decrease
 
 	MOV  R2, [GAME_STATE]
 	CMP  R2, IN_GAME
 	JNZ  energy_Handling         ; if no game is elapsed, then there is no energy to update
+
+	MOV  R1, [ENERGY_HEX]        ; obtains the current energy
+	ADD  R1, R0                  ; adds the current energy with the amount to increase/decrease
 
 	CMP  R1, NULL
 	JLE  energy_Handling_MinLim  ; if the energy becomes negative it becomes stuck at 0
@@ -933,14 +928,11 @@ missile_InitDraw:
 
 	MOV  R2, [R1]             ; obtains the current column of the rover
 	ADD  R2, 0002H            ; obtains the column the missile will be drawn on
-	MOV  [R0], R2             ; uptades the value of the missile's column
+	MOV  [R0], R2             ; updates the value of the missile's column
 
-	MOV  R3, NEXT_WORD        ; used to obtain the address of the missile's line
-	ADD  R1, NEXT_WORD        ; obtains the address of the line of the rover
-
-	MOV  R2, [R1]             ; obtains the current line of the rover
-	SUB  R2, 0001H            ; obtains the line the missile will be drawn on
-	MOV  [R0 + R3], R2        ; updates the value of the pixel's line
+	MOV  R3, NEXT_WORD         ; used to obtain the address of the missile's line
+	MOV  R4, MISSILE_START_POS_Y
+	MOV  [R0 + R3], R4        ; resets the missile's Y coordinate
 
 	CALL image_Draw           ; draws the initial missile on the screen
 	MOV  R4, 6
@@ -956,15 +948,20 @@ missile_InitDraw:
 missile_VerifyBounds:
 	MOV  R4, [MOVE_MISSILE]
 
-	CALL image_Erase          ; deletes the missile from the pixelscreen
+	MOV  R4, [GAME_STATE]
+	CMP  R4, IN_PAUSE          ; checks if the game is paused, if so it pauses the missile movement
+	JZ   missile_VerifyBounds
 
-	MOV  R1, [R0 + R3]        ; obtains the line of the missile
-	CMP  R1, NULL             ; checks if the missile has collided with a meteor
+	CALL image_Erase           ; deletes the missile from the pixelscreen
+
+	MOV  R1, [R0]              ; obtains the column of the missile
+	CMP  R1, NULL              ; checks if the missile has collided with a meteor
 	JZ   missile_Handling
 
-	SUB  R1, 0001H            ; gets the new line of the missile
+	MOV  R1, [R0 + R3]         ; obtains the current line of the missile
+	SUB  R1, 0001H             ; gets the new line of the missile
 	MOV  R2, MAX_MISSILE_LINE
-	CMP  R1, R2               ; checks if the missile doesn't surpass a defined line limit
+	CMP  R1, R2                ; checks if the missile doesn't surpass a defined line limit
 	JLT  missile_Handling
 
 ; ----------------------------------------------------------------------------
@@ -988,11 +985,11 @@ missile_Reset:
 	PUSH R1
 
 	MOV  R0, MISSILE
-	MOV  R1, NULL  ; resets the missile's X current position to zero
+	MOV  R1, NULL                 ; resets the missile's X current position to zero
 	MOV  [R0], R1
 
 	ADD  R0, NEXT_WORD
-	MOV  R1, NULL  ; resets the missile's X current position to zero
+	MOV  R1, MISSILE_START_POS_Y  ; resets the missile's X current position to zero
 	MOV  [R0], R1
 
 	POP  R1
