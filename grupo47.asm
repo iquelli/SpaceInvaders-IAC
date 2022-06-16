@@ -57,7 +57,7 @@ PIN                      EQU 0E000H  ; peripheral to generate pseudo-random valu
 NUM_METEORS              EQU 0004H   ; the maximum number of meteors in the screens at any given time
 MAX_LIN                  EQU 0020H   ; the total number of lines the screen has
 MAX_LIN_METEOR_CHANGE    EQU 000CH   ; the maximum line where the meteor changes size
-METEOR_EXPLODED_DELAY    EQU 0FF00H  ; delay that let's the meteor stay exploded on the screen
+METEOR_EXPLODED_DELAY    EQU 0F000H  ; delay that let's the meteor stay exploded on the screen
 METEOR_START_POS_Y       EQU 0FFFFH  ; the starting Y position of any meteors top left pixel
 METEOR_TINY_DIMENSIONS   EQU 0101H   ; length and height of a tiny meteor
 METEOR_SMALL_DIMENSIONS  EQU 0202H   ; length and height of a small meteor
@@ -1006,8 +1006,9 @@ missile_VerifyBounds:
 	SUB  R1, 0001H             ; gets the new line of the missile
 	MOV  R2, MAX_MISSILE_LINE
 	CMP  R1, R2                ; checks if the missile doesn't surpass a defined line limit
+	JGE  missile_Move
 	CALL missile_Reset         ; resets the missile's original position
-	JLT  missile_Handling
+	JMP  missile_Handling
 
 ; ----------------------------------------------------------------------------
 ; missile_Move: Actually moves the missile one line above it's previous
@@ -1062,23 +1063,18 @@ meteor_Handling:
 	MOV  R0, [R9 + R10]      ; saves the meteor we will move in R0
 
 ; ----------------------------------------------------------------------------
-; meteor_VerifyConditions: Verifies if there is an elapsed game and unblocks
-; a variable when it can move the meteor.
+; meteor_VerifyBounds: Verifies if there is an elapsed game and unblocks
+; a variable when it can move the meteor. Also checks if the meteor has passes
+; the bottom of the screen.
 ; ----------------------------------------------------------------------------
 
-meteor_VerifyConditions:
+meteor_VerifyBounds:
 	MOV  R1, [MOVE_METEOR]    ; constant that controls the movement of meteors
 
 	MOV  R1, [GAME_STATE]
 	CMP  R1, IN_GAME          ; checks if the game is not paused or at the start/end
-	JNZ  meteor_VerifyConditions
+	JNZ  meteor_VerifyBounds
 
-; ----------------------------------------------------------------------------
-; meteor_VerifyBounds: Checks if the meteor has passed the bottom of the
-; screen.
-; ----------------------------------------------------------------------------
-
-meteor_VerifyBounds:
 	MOV  R1, [R0]       ; obtains the column of the meteor
 	CMP  R1, NULL
 	JZ   meteor_Random  ; if the meteor is new it finds new information for it
@@ -1160,16 +1156,16 @@ meteor_RoverCollisionCheck:
 	MOV  R3, [R0 + R4]  ; gets the Y coordinate of the meteor
 	SUB  R2, R3         ; calculates the Y position of the rover in relation to the meteor
 	CMP  R2, 0005H      ; if the distance between them is greater than or equal to 5 no collision happens
-	JGE  meteor_VerifyConditions
+	JGE  meteor_VerifyBounds
 
 	MOV  R2, [R1]    ; gets the X coordinate of the rover
 	MOV  R3, [R0]    ; gets the X coordinate of the meteor
 	SUB  R2, R3      ; calculates the X positon of the rover in relation to the meteor
 	CMP  R2, 0005H   ; if the rover is a distance of 5 to the right of the meteor no collision happens
-	JGE  meteor_VerifyConditions
+	JGE  meteor_VerifyBounds
 	MOV  R4, 0FFFBH  ; if the rover is a distance of 5 to the left of the meteor no collision happens
 	CMP  R2, R4
-	JLE  meteor_VerifyConditions
+	JLE  meteor_VerifyBounds
 
 	MOV  R4, GET_TYPE
 	MOV  R3, [R0 + R4]  ; gets the current type of the meteor
@@ -1184,7 +1180,7 @@ meteor_RoverCollisionCheck:
 
 meteor_BadRoverCollision:
 	CALL game_OverBecauseMeteor  ; terminates the game because of a bad collision
-	JMP  meteor_VerifyConditions
+	JMP  meteor_VerifyBounds
 
 ; ----------------------------------------------------------------------------
 ; meteor_GoodRoverCollision: Increases the energy of the rover after it has
@@ -1279,7 +1275,7 @@ meteor_Random_GoodMeteor:
 meteor_Random_Return:
 	MOV  R4, GET_TYPE
 	MOV  [R0 + R4], R3  ; sets the meteor's new type
-	JMP  meteor_VerifyConditions
+	JMP  meteor_VerifyBounds
 
 ; ----------------------------------------------------------------------------
 ; meteors_Reset: Resets all of the meteors to their starting state.
