@@ -1006,6 +1006,7 @@ missile_VerifyBounds:
 	SUB  R1, 0001H             ; gets the new line of the missile
 	MOV  R2, MAX_MISSILE_LINE
 	CMP  R1, R2                ; checks if the missile doesn't surpass a defined line limit
+	CALL missile_Reset         ; resets the missile's original position
 	JLT  missile_Handling
 
 ; ----------------------------------------------------------------------------
