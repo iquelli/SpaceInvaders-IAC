@@ -1512,7 +1512,7 @@
     "windowScreenWidthPixels" : 1024,
     "windowScreenHeightixels" : 512,
     "defaultPenColor" : 51063,
-    "image paths" : [ "mediacenter/space_background.png", "mediacenter/pause.png" ],
+    "image paths" : [ "mediacenter/space_background.png", "mediacenter/paused.png" ],
     "sounds/videos settings" : [ {
       "filePathName" : "mediacenter/game_menu.mp4",
       "relative sound volume" : 1.0,
