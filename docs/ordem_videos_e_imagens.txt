@@ -10,7 +10,6 @@ Ordem (atual) vídeos/sons
 8 - som energia de meteoro bom é reaproveitada
 9 - som game_over_energy
 10 - som game_over_meteor
-11 - som de fundo
 
 Ordem (atual) imagens
 0 - default background

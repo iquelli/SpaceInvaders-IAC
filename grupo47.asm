@@ -7,7 +7,7 @@
 ;		Group: 47
 ;		Course: Computer Science and Engineering (Alameda) - IST
 ;		Description: Space Invaders game in PEPE Assembly.
-;		Date: 17-06-2022
+;		Date: 18-06-2022
 
 ;=============================================================================
 ; NUMERIC CONSTANTS:
@@ -91,6 +91,8 @@ NEXT_BYTE    EQU 0001H  ; value that a byte occupies at an address
 
 PLACE 1000H
 
+INTE_SWITCH: LOCK TRUE  ; variable used to tell when to switch on or off interruptions
+
 GAME_STATE:     WORD IN_MENU  ; variable that stores the current game state
 MENU_ANIMATION: WORD 0001H    ; variable that controls what animation will be played next
 
@@ -114,6 +116,9 @@ GAME_MANUAL_CHANGE_LIST:  ; list containing all the game states the user can swi
 
 	STACK 100H
 SP_Main:
+
+	STACK 100H
+SP_GameHandling:
 
 	STACK 100H
 SP_KeySweeper:
@@ -323,6 +328,7 @@ init:
 	EI2
 	EI
 
+	CALL game_Handling
 	CALL key_Sweeper
 	MOV  R11, NUM_METEORS
 	init_Meteors:
@@ -334,15 +340,25 @@ init:
 	CALL energy_Handling
 
 ; ----------------------------------------------------------------------------
-; main: Starts the main loop of the program.
+; main: Starts the main loop of the program. The main process is used to
+; switch the interruptions on and off based on the locked variable.
 ; ----------------------------------------------------------------------------
 
 main:
-	YIELD
+	MOV  R0, [INTE_SWITCH]  ; only unlocks when the variable wants to switch
+	CMP  R0, TRUE           ; the interruption state
+	JNZ  inte_SwitchOff     ; switches interruptions off
+	EI                      ; switches interruptions on
+	JMP  main
+	inte_SwitchOff:
+		DI
+		JMP  main
 
 ;=============================================================================
 ; GAME STATES: Controls the current state of the game.
 ;=============================================================================
+
+PROCESS SP_GameHandling
 
 ; ----------------------------------------------------------------------------
 ; game_Handling: Handles the manual changes in the game states performed by
@@ -353,15 +369,15 @@ game_Handling:
 	MOV  R0, [KEY_PRESSED]  ; locks the process until a key is pressed
 
 	MOV  R1, 000CH
-	SUB  R0, R1     ; gets the key position relative to the C key
-	JN   main       ; if the key is before C it does nothing
+	SUB  R0, R1             ; gets the key position relative to the C key
+	JN   game_Handling      ; if the key is before C it does nothing
 	CMP  R0, 0002H
-	JGT  main       ; if the key is after E it does nothing
-	SHL  R0, 1      ; each WORD occupies two addresses
+	JGT  game_Handling      ; if the key is after E it does nothing
+	SHL  R0, 1              ; each WORD occupies two addresses
 
 	MOV  R1, GAME_MANUAL_CHANGE_LIST
-	MOV  R2, [R1 + R0]  ; gets the right label to jump to
-	JMP  R2             ; jumps to the label needed for the change in the game state
+	MOV  R2, [R1 + R0]      ; gets the right label to jump to
+	JMP  R2                 ; jumps to the label needed for the change in the game state
 
 ; ----------------------------------------------------------------------------
 ; game_Menu: Resets the information about previous games and shows the
@@ -391,10 +407,12 @@ game_Menu:
 game_Init:
 	MOV  R0, [GAME_STATE]
 	CMP  R0, IN_MENU              ; only starts a new game when it's on a menu
-	JNZ  main
+	JNZ  game_Handling
 
 	CALL energy_Reset
 
+	MOV  R0, TRUE
+	MOV  [INTE_SWITCH], R0        ; switches on all interruptions in case they were off
 	MOV  [VIDEO_STOP], R0         ; stops the previous video that was playing (value of R0 doesn't matter)
 	MOV  R3, [MENU_ANIMATION]     ; gets the video to transition to
 	MOV  [VIDEO_PLAY], R3         ; plays the game starting video
@@ -413,7 +431,7 @@ game_Init_Draw:
 
 	MOV  R0, IN_GAME              ; changes the current game state to in game
 	MOV  [GAME_STATE], R0         ; because a new game is about to begin
-	JMP  main
+	JMP  game_Handling
 
 ; ----------------------------------------------------------------------------
 ; game_PauseHandling: Pauses the game, by putting a pause button on the
@@ -428,19 +446,23 @@ game_PauseHandling:
 	JZ   game_Pause        ; if it's in a game it pauses it
 	CMP  R0, IN_PAUSE
 	JZ   game_Unpause      ; if it's paused it unpauses the game
-	JMP  main              ; if the program is in any other state it does nothing
+	JMP  game_Handling     ; if the program is in any other state it does nothing
 
 game_Pause:
+	MOV  R0, FALSE
+	MOV  [INTE_SWITCH], R0        ; switches off all interruptions
 	MOV  [SELECT_FOREGROUND], R1  ; puts a pause button on the screen
 	MOV  R1, IN_PAUSE
 	MOV  [GAME_STATE], R1         ; changes the game state to paused
-	JMP  main
+	JMP  game_Handling
 
 game_Unpause:
+	MOV  R0, TRUE
+	MOV  [INTE_SWITCH], R0        ; switches on all interruptions
 	MOV  [DELETE_FOREGROUND], R1  ; deletes the pause button from the screen
 	MOV  R1, IN_GAME
 	MOV  [GAME_STATE], R1         ; changes the game state to in game
-	JMP  main
+	JMP  game_Handling
 
 ; ----------------------------------------------------------------------------
 ; game_End: Indicates the video to play when the user terminates the game
@@ -450,23 +472,27 @@ game_Unpause:
 game_End:
 	MOV  R0, [GAME_STATE]
 	CMP  R0, IN_GAME        ; only if the program is in a game it can end a game
-	JNZ  main
+	JNZ  game_Handling
 
 	CALL game_Reset
+	MOV  R0, FALSE
+	MOV  [INTE_SWITCH], R0  ; switches off all interruptions
 	MOV  R0, 0
 	MOV  [VIDEO_CYCLE], R0  ; plays the ending game video
 	MOV  R3, 1              ; sets the next to transition to
 	MOV  [MENU_ANIMATION], R3
-	JMP  main
+	JMP  game_Handling
 
 ; ----------------------------------------------------------------------------
 ; game_Over: Clears the screen and plays one of the game over videos.
 ; ----------------------------------------------------------------------------
 
 game_Over:
-	MOV  [VIDEO_CYCLE], R0    ; plays the actual video
+	MOV  [VIDEO_CYCLE], R0     ; plays the actual video
 	ADD  R0, 0001H
-	MOV  [MENU_ANIMATION], R0 ; sets the next video to transition to
+	MOV  [MENU_ANIMATION], R0  ; sets the next video to transition to
+	MOV  R0, FALSE
+	MOV  [INTE_SWITCH], R0     ; switches off all interruptions
 	CALL game_Reset
 
 	POP  R0
@@ -474,12 +500,16 @@ game_Over:
 
 game_OverBecauseEnergy:
 	PUSH R0
-	MOV  R0, 2  ; tells the program to play the game over (energy) video
+	MOV  R0, 9
+	MOV  [SOUND_PLAY], R0  ; plays the sound when the game ends because of no energy
+	MOV  R0, 2             ; tells the program to play the game over (energy) video
 	JMP  game_Over
 
 game_OverBecauseMeteor:
 	PUSH R0
-	MOV  R0, 4  ; tells the program to play the game over (meteor) video
+	MOV  R0, 10
+	MOV  [SOUND_PLAY], R0  ; plays the sound when the game ends because of a bad collision
+	MOV  R0, 4             ; tells the program to play the game over (meteor) video
 	JMP  game_Over
 
 ; ----------------------------------------------------------------------------
@@ -1136,6 +1166,8 @@ meteor_BadRoverCollision:
 meteor_GoodRoverCollision:
 	MOV  R1, ENERGY_GOOD_METEOR_INCREASE
 	MOV  [ENERGY_CHANGE], R1  ; increases 10% of the energy after the collision with a good meteor
+	MOV  R1, 8
+	MOV  [SOUND_PLAY], R1     ; plays the sound when a good meteor collides with the rover
 
 	CALL image_Erase          ; erases the meteor
 	JMP  meteor_Random        ; finds a new position and type for the meteor at random
@@ -1167,8 +1199,8 @@ meteor_MissileCollision:
 ; ----------------------------------------------------------------------------
 
 meteor_Exploded:
-	SUB  R1, 0001H    ; delays the screentime of the exploded meteor
-	YIELD             ; does it in a non nosy way
+	SUB  R1, 0001H            ; delays the screentime of the exploded meteor
+	YIELD                     ; does it in a non nosy way
 	JNZ  meteor_Exploded
 
 	CALL image_Erase          ; erases the exploded meteor after a little while
@@ -1176,6 +1208,8 @@ meteor_Exploded:
 	CMP  R5, R2               ; if the meteor type is good then it jumps to the correct routine
 	JGE  meteor_Random
 
+	MOV  R1, 7
+	MOV  [SOUND_PLAY], R1     ; plays the sound when a bad meteor explodes
 	MOV  R1, ENERGY_INVADER_INCREASE
 	MOV  [ENERGY_CHANGE], R1  ; a bad meteor was destroyed so the energy increases
 	JMP  meteor_Random
@@ -1194,18 +1228,19 @@ meteor_Random:
 	MOV  R2, PIN
 	MOVB R1, [R2]   ; reads value from the PIN
 	SHR  R1, 5      ; saves only the pseudo-random bits into R1
-	MOV  R2, R1     ; backs up the pseudo-random value
-	SHL  R2, 3      ; multiplies it by 8 to find the column of the meteor
-	MOV  [R0], R2   ; saves the random generated column of the meteor
+	SHL  R1, 3      ; multiplies it by 8 to find the column of the meteor
+	MOV  [R0], R1   ; saves the random generated column of the meteor
 
-	MOV  R2, NEXT_WORD
+	MOV  R4, NEXT_WORD
 	MOV  R3, METEOR_START_POS_Y
-	MOV  [R0 + R2], R3  ; resets the meteor's Y coordinate
+	MOV  [R0 + R4], R3  ; resets the meteor's Y coordinate
 
-	MOV  R2, 0006H      ; used to access the meteor's pattern
+	MOV  R4, 0006H      ; used to access the meteor's pattern
 	MOV  R3, METEOR_TINY_PATTERN
-	MOV  [R0 + R2], R3  ; resets the meteor's pattern to the tiny meteor
+	MOV  [R0 + R4], R3  ; resets the meteor's pattern to the tiny meteor
 
+	MOVB R1, [R2]                  ; reads new random value from the PIN
+	SHR  R1, 5                     ; saves only the pseudo-random bits into R1
 	CMP  R1, 0002H                 ; 25% chance of getting a good meteor if
 	JLE  meteor_Random_GoodMeteor  ; the value generated is 0 or 1
 	MOV  R3, BAD_METEOR_PATTERNS   ; 75% chance of getting a bad meteor if the value is between 2 and 7
@@ -1215,8 +1250,8 @@ meteor_Random_GoodMeteor:
 	MOV  R3, GOOD_METEOR_PATTERNS
 
 meteor_Random_Return:
-	MOV  R2, 0008H                 ; used to access the meteor's type
-	MOV  [R0 + R2], R3             ; sets the meteor's new type
+	MOV  R4, 0008H                 ; used to access the meteor's type
+	MOV  [R0 + R4], R3             ; sets the meteor's new type
 
 	POP  R3
 	POP  R2
