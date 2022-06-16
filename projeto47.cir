@@ -721,7 +721,7 @@
     "simGuiXRelative" : 0,
     "simGuiYRelative" : 0,
     "simGuiWidth" : 822,
-    "simGuiHeight" : 896,
+    "simGuiHeight" : 911,
     "clockPeriod" : 200,
     "startAutomatically" : false,
     "simulationMaster" : true,
@@ -750,6 +750,7 @@
       "pinConnectionID" : -1,
       "pinValueFixed" : "1"
     },
+    "programFilePathName" : "grupo47.asm",
     "nTabSpaces" : 4,
     "bus interface" : {
       "className" : "ModuleExtensionMasterBusReadWrite",
@@ -1550,7 +1551,7 @@
       "playAsClip" : false
     }, {
       "filePathName" : "mediacenter/missile_shoot.wav",
-      "relative sound volume" : 1.0,
+      "relative sound volume" : 0.5,
       "relative start time" : 0.0,
       "relative stop time" : 1.0,
       "playAsClip" : false
@@ -1575,6 +1576,12 @@
     }, {
       "filePathName" : "mediacenter/explosion.wav",
       "relative sound volume" : 0.6,
+      "relative start time" : 0.0,
+      "relative stop time" : 1.0,
+      "playAsClip" : false
+    }, {
+      "filePathName" : "mediacenter/game_menu_music.wav",
+      "relative sound volume" : 0.15,
       "relative start time" : 0.0,
       "relative stop time" : 1.0,
       "playAsClip" : false
@@ -1697,7 +1704,7 @@
     "positionX" : 32,
     "positionY" : 104,
     "simGuiVisibleInSimulation" : false,
-    "clockPeriod" : 400,
+    "clockPeriod" : 350,
     "startAutomatically" : true,
     "simulationMaster" : false,
     "clockOutPin" : {
@@ -1743,7 +1750,7 @@
     "positionX" : 32,
     "positionY" : 232,
     "simGuiVisibleInSimulation" : false,
-    "clockPeriod" : 3000,
+    "clockPeriod" : 3500,
     "startAutomatically" : true,
     "simulationMaster" : false,
     "clockOutPin" : {

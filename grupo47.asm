@@ -34,15 +34,15 @@ DEF_PIXEL_WRITE   EQU 6012H  ; address of the command to write a pixel
 DEF_PIXEL_READ    EQU 6014H  ; address of the command to read a pixel's state
 OBTAIN_COLOR      EQU 6010H  ; address of the command to obtain the current color of a pixel
 CLEAR_SCREENS     EQU 6002H  ; address of the command to clear all the screens
-CLEAR_SCREEN      EQU 6000H  ; address of the command to clear a specific screen
 SELECT_SCREEN     EQU 6004H  ; address of the command to select a specific screen
 SELECT_BACKGROUND EQU 6042H  ; address of the command to select a background
 SELECT_FOREGROUND EQU 6046H  ; address of the command to select a foreground
 DELETE_FOREGROUND EQU 6044H  ; address of the command to delete the foreground
-SOUND_PLAY        EQU 605AH  ; address of the command to play a sound
-VIDEO_PLAY        EQU 605AH  ; address of the command to play a video
-VIDEO_CYCLE       EQU 605CH  ; address of the command to play a video on repeat
-VIDEO_STOP        EQU 6068H  ; address of the command to make all videos stop
+MEDIA_PLAY        EQU 605AH  ; address of the command to play a video/sound
+MEDIA_CYCLE       EQU 605CH  ; address of the command to play a video/sound on repeat
+MEDIA_STOP        EQU 6068H  ; address of the command to make all videos/sounds stop
+SOUND_PAUSE       EQU 605EH  ; address of the command to pause a specific sound
+SOUND_RESUME      EQU 6060H  ; address of the command to resume a specific sound
 VIDEO_STATE       EQU 6052H  ; address of the command to obtain the state of a video
 
 MAX_COL_ROVER     EQU 003BH   ; maximum column the rover can be at
@@ -54,25 +54,25 @@ ROVER_DELAY       EQU 0400H   ; delay used to limit the speed of the rover
 ROVER_SCREEN      EQU 0004H   ; screen to draw the rover in
 
 PIN                      EQU 0E000H  ; peripheral to generate pseudo-random values
-NUM_METEORS              EQU 0004H   ; the number of meteors in the screens
-MAX_LIN                  EQU 0020H   ; the first line we can paint at
+NUM_METEORS              EQU 0004H   ; the maximum number of meteors in the screens at any given time
+MAX_LIN                  EQU 0020H   ; the total number of lines the screen has
 MAX_LIN_METEOR_CHANGE    EQU 000CH   ; the maximum line where the meteor changes size
-METEOR_EXPLODED_DELAY    EQU 0FFFFH  ; delay that let's the meteor stay exploded on the screen
+METEOR_EXPLODED_DELAY    EQU 0FF00H  ; delay that let's the meteor stay exploded on the screen
 METEOR_START_POS_Y       EQU 0FFFFH  ; the starting Y position of any meteors top left pixel
 METEOR_TINY_DIMENSIONS   EQU 0101H   ; length and height of a tiny meteor
 METEOR_SMALL_DIMENSIONS  EQU 0202H   ; length and height of a small meteor
 METEOR_MEDIUM_DIMENSIONS EQU 0303H   ; length and height of a medium meteor
 METEOR_LARGE_DIMENSIONS  EQU 0404H   ; length and height of a huge meteor
 METEOR_GIANT_DIMENSIONS  EQU 0505H   ; length and height of a giant meteor
-DISTANT_METEOR_COLOR     EQU 8000H   ; color used for distant meteors
+DISTANT_METEOR_COLOR     EQU 0E000H  ; color used for distant meteors
 BAD_METEOR_COLOR         EQU 0FF00H  ; color used for bad meteors
 GOOD_METEOR_COLOR        EQU 0F0F0H  ; color used for good meteors
-EXPLODED_METEOR_COLOR    EQU 0F0FFH  ; color used for an exploded meteor
+EXPLODED_METEOR_COLOR    EQU 0E0FFH  ; color used for an exploded meteor
 
 MISSILE_DIMENSIONS  EQU 0101H   ; length and height of the missile
 MISSILE_START_POS_Y EQU 001BH   ; the starting Y position of the missile's top left pixel
 MISSILE_COLOR       EQU 0F0F0H  ; color of the missile
-MAX_MISSILE_LINE    EQU 0011H   ; maximum line the missile can go
+MAX_MISSILE_LINE    EQU 0010H   ; maximum line the missile can go
 MISSILE_SCREEN      EQU 0004H   ; screen to draw the missile in
 
 IN_MENU    EQU 0000H  ; value when the user is in a menu
@@ -84,6 +84,8 @@ FALSE        EQU 0000H  ; false is represented by the value zero
 NULL         EQU 0000H  ; value equal to zero
 NEXT_WORD    EQU 0002H  ; value that a word occupies at an address
 NEXT_BYTE    EQU 0001H  ; value that a byte occupies at an address
+GET_PATTERN  EQU 0006H  ; used to obtain the pattern information of the object
+GET_TYPE     EQU 0008H  ; used to get the meteor's type
 
 ;=============================================================================
 ; VARIABLE DECLARATION:
@@ -91,10 +93,10 @@ NEXT_BYTE    EQU 0001H  ; value that a byte occupies at an address
 
 PLACE 1000H
 
-INTE_SWITCH: LOCK TRUE  ; variable used to tell when to switch on or off interruptions
+INTE_SWITCH: LOCK TRUE  ; variable used to tell when to switch interruptions on or off
 
 GAME_STATE:     WORD IN_MENU  ; variable that stores the current game state
-MENU_ANIMATION: WORD 0001H    ; variable that controls what animation will be played next
+MENU_ANIMATION: WORD 1        ; variable that controls what animation will be played next
 
 KEY_PRESSED:  LOCK NULL  ; value of the key initially pressed on the current loop
 KEY_PRESSING: LOCK NULL  ; value of the key that is currently being held down
@@ -314,30 +316,30 @@ inte_Tab:
 PLACE 0000H
 
 ; ----------------------------------------------------------------------------
-; init: Initializes the program and the processes and starts the initial menu.
+; init: Initializes the program, the processes and starts the initial menu.
 ; ----------------------------------------------------------------------------
 
 init:
-	MOV  SP, SP_Main    ; initializes the stack pointer
-	MOV  BTE, inte_Tab  ; initializes the interruption table
+	MOV  SP, SP_Main          ; initializes the main stack pointer
+	MOV  BTE, inte_Tab        ; initializes the interruption table
 
-	CALL game_Menu
+	CALL game_Menu            ; stars the initial game menu
 
 	EI0
 	EI1
 	EI2
 	EI
 
-	CALL game_Handling
-	CALL key_Sweeper
+	CALL game_Handling        ; process used to control the manual game states
+	CALL key_Sweeper          ; process used to sweep through the keypad
 	MOV  R11, NUM_METEORS
 	init_Meteors:
-		SUB  R11, 0001H
-		CALL meteor_Handling
+		SUB  R11, 0001H       ; used to determine the instance number of each meteor
+		CALL meteor_Handling  ; process used to control the meteors moving
 		JNZ  init_Meteors
-	CALL rover_Handling
-	CALL missile_Handling
-	CALL energy_Handling
+	CALL rover_Handling       ; process used to control the movement of the rover
+	CALL missile_Handling     ; process used to control the movement of the missile
+	CALL energy_Handling      ; process used to change the energy of the rover during the game
 
 ; ----------------------------------------------------------------------------
 ; main: Starts the main loop of the program. The main process is used to
@@ -371,7 +373,7 @@ game_Handling:
 	MOV  R1, 000CH
 	SUB  R0, R1             ; gets the key position relative to the C key
 	JN   game_Handling      ; if the key is before C it does nothing
-	CMP  R0, 0002H
+	CMP  R0, 0002H          ; EH - CH = 2H
 	JGT  game_Handling      ; if the key is after E it does nothing
 	SHL  R0, 1              ; each WORD occupies two addresses
 
@@ -390,18 +392,17 @@ game_Menu:
 	CALL game_Reset
 
 	MOV  R0, 0
-	MOV  [VIDEO_CYCLE], R0     ; plays the starting menu video on a cycle
-	MOV  R0, 0001H
+	MOV  [MEDIA_CYCLE], R0     ; plays the starting menu video on a cycle
+	MOV  R0, 1
 	MOV  [MENU_ANIMATION], R0  ; resets the menu animation default video
 
 	POP  R0
 	RET
 
 ; ----------------------------------------------------------------------------
-; game_Init: Resets all of the game information, including the energy of the
-; rover. Initializes the game by playing the correct video and drawing the
-; starting object and also enables all interruptions.
-; - R3 -> video to play when starting the game
+; game_Init: Resets the energy of the rover. Initializes the game by playing
+; the correct video and drawing the starting object and also enables all
+; interruptions.
 ; ----------------------------------------------------------------------------
 
 game_Init:
@@ -413,9 +414,11 @@ game_Init:
 
 	MOV  R0, TRUE
 	MOV  [INTE_SWITCH], R0        ; switches on all interruptions in case they were off
-	MOV  [VIDEO_STOP], R0         ; stops the previous video that was playing (value of R0 doesn't matter)
-	MOV  R3, [MENU_ANIMATION]     ; gets the video to transition to
-	MOV  [VIDEO_PLAY], R3         ; plays the game starting video
+
+	MOV  [MEDIA_STOP], R0         ; stops the previous video that was playing (value of R0 doesn't matter)
+	MOV  R0, [MENU_ANIMATION]     ; gets the video to transition to
+	MOV  [MEDIA_PLAY], R0         ; plays the game starting video
+
 	MOV  R0, 0
 	MOV  [SELECT_BACKGROUND], R0  ; selects the starting background
 
@@ -429,6 +432,9 @@ game_Init_Draw:
 	MOV  R0, ROVER
 	CALL image_Draw               ; draws the starting rover
 
+	MOV  R0, 11
+	MOV  [MEDIA_CYCLE], R0        ; plays the game music on a cycle
+
 	MOV  R0, IN_GAME              ; changes the current game state to in game
 	MOV  [GAME_STATE], R0         ; because a new game is about to begin
 	JMP  game_Handling
@@ -440,18 +446,23 @@ game_Init_Draw:
 ; ----------------------------------------------------------------------------
 
 game_PauseHandling:
-	MOV  R1, 1             ; used to select the button to delete or put on the screen
 	MOV  R0, [GAME_STATE]
 	CMP  R0, IN_GAME
-	JZ   game_Pause        ; if it's in a game it pauses it
+	JZ   game_Pause               ; if it's in a game it pauses it
 	CMP  R0, IN_PAUSE
-	JZ   game_Unpause      ; if it's paused it unpauses the game
-	JMP  game_Handling     ; if the program is in any other state it does nothing
+	JZ   game_Unpause             ; if it's paused it unpauses the game
+	JMP  game_Handling            ; if the program is in any other state it does nothing
 
 game_Pause:
 	MOV  R0, FALSE
 	MOV  [INTE_SWITCH], R0        ; switches off all interruptions
-	MOV  [SELECT_FOREGROUND], R1  ; puts a pause button on the screen
+
+	MOV  R0, 11
+	MOV  [SOUND_PAUSE], R0        ; pauses the game music
+
+	MOV  R0, 1
+	MOV  [SELECT_FOREGROUND], R0  ; puts a pause button on the screen
+
 	MOV  R1, IN_PAUSE
 	MOV  [GAME_STATE], R1         ; changes the game state to paused
 	JMP  game_Handling
@@ -459,28 +470,37 @@ game_Pause:
 game_Unpause:
 	MOV  R0, TRUE
 	MOV  [INTE_SWITCH], R0        ; switches on all interruptions
-	MOV  [DELETE_FOREGROUND], R1  ; deletes the pause button from the screen
+
+	MOV  R0, 11
+	MOV  [SOUND_RESUME], R0       ; resumes the game music
+
+	MOV  R0, 1
+	MOV  [DELETE_FOREGROUND], R0  ; deletes the pause button from the screen
+
 	MOV  R1, IN_GAME
 	MOV  [GAME_STATE], R1         ; changes the game state to in game
 	JMP  game_Handling
 
 ; ----------------------------------------------------------------------------
-; game_End: Indicates the video to play when the user terminates the game
-; manually.
+; game_End: Terminates the game manually and indicates the video to play right
+; after.
 ; ----------------------------------------------------------------------------
 
 game_End:
 	MOV  R0, [GAME_STATE]
-	CMP  R0, IN_GAME        ; only if the program is in a game it can end a game
+	CMP  R0, IN_GAME           ; only if the program is in a game it can end a game
 	JNZ  game_Handling
 
 	CALL game_Reset
+
 	MOV  R0, FALSE
-	MOV  [INTE_SWITCH], R0  ; switches off all interruptions
+	MOV  [INTE_SWITCH], R0     ; switches off all interruptions
+
+	MOV  [MEDIA_STOP], R0      ; stops the game music because the game ended (value of R0 doesn't matter)
 	MOV  R0, 0
-	MOV  [VIDEO_CYCLE], R0  ; plays the ending game video
-	MOV  R3, 1              ; sets the next to transition to
-	MOV  [MENU_ANIMATION], R3
+	MOV  [MEDIA_CYCLE], R0     ; plays the ending game video
+	ADD  R0, 1                 ; sets the next to transition to
+	MOV  [MENU_ANIMATION], R0
 	JMP  game_Handling
 
 ; ----------------------------------------------------------------------------
@@ -488,9 +508,11 @@ game_End:
 ; ----------------------------------------------------------------------------
 
 game_Over:
-	MOV  [VIDEO_CYCLE], R0     ; plays the actual video
+	MOV  [MEDIA_STOP], R0      ; stops the game music because the game is over (value of R0 doesn't matter)
+	MOV  [MEDIA_CYCLE], R0     ; plays the actual video
 	ADD  R0, 0001H
 	MOV  [MENU_ANIMATION], R0  ; sets the next video to transition to
+
 	MOV  R0, FALSE
 	MOV  [INTE_SWITCH], R0     ; switches off all interruptions
 	CALL game_Reset
@@ -501,14 +523,16 @@ game_Over:
 game_OverBecauseEnergy:
 	PUSH R0
 	MOV  R0, 9
-	MOV  [SOUND_PLAY], R0  ; plays the sound when the game ends because of no energy
+	MOV  [MEDIA_PLAY], R0  ; plays the sound when the game ends because of no energy
+
 	MOV  R0, 2             ; tells the program to play the game over (energy) video
 	JMP  game_Over
 
 game_OverBecauseMeteor:
 	PUSH R0
 	MOV  R0, 10
-	MOV  [SOUND_PLAY], R0  ; plays the sound when the game ends because of a bad collision
+	MOV  [MEDIA_PLAY], R0  ; plays the sound when the game ends because of a bad collision
+
 	MOV  R0, 4             ; tells the program to play the game over (meteor) video
 	JMP  game_Over
 
@@ -541,8 +565,8 @@ PROCESS SP_KeySweeper
 ; ----------------------------------------------------------------------------
 ; key_Sweeper: Swipes the keypad waiting for the user to press a key. When it
 ; happens it exits with the line and column of the key stored.
-; R2 -> line of the key being pressed
-; R3 -> column of the key being pressed
+; - R2 -> line of the key being pressed
+; - R3 -> column of the key being pressed
 ; ----------------------------------------------------------------------------
 
 key_Sweeper:
@@ -567,7 +591,7 @@ key_Sweeper_Wait:
 ; ----------------------------------------------------------------------------
 ; key_Convert: Converts the arbitrary column and line values into the
 ; actual key the user is pressing.
-; R5 -> key that is being pressed, now converted into hexadecimal
+; - R5 -> key that is being pressed, now converted into hexadecimal
 ; ----------------------------------------------------------------------------
 
 key_Convert:
@@ -720,16 +744,16 @@ image_Erase:
 	PUSH R2
 	PUSH R3
 
-	MOV  R2, 0006H      ; used to obtain the pattern information of the object
-	MOV  R1, [R0 + R2]  ; obtains the pattern information of the object
+	MOV  R2, GET_PATTERN
+	MOV  R1, [R0 + R2]    ; obtains the pattern information of the object
 
 	ADD  R1, NEXT_WORD
-	MOV  R2, [R1]       ; backs up the original color into R2
+	MOV  R2, [R1]         ; backs up the original color into R2
 
 	MOV  R3, NULL
-	MOV  [R1], R3       ; sets the color of the image to NULL in order to erase it
-	CALL image_Draw     ; actually erases the image
-	MOV  [R1], R2       ; resets the color to the original
+	MOV  [R1], R3         ; sets the color of the image to NULL in order to erase it
+	CALL image_Draw       ; actually erases the image
+	MOV  [R1], R2         ; resets the color to the original
 
 	POP  R3
 	POP  R2
@@ -748,7 +772,7 @@ PROCESS SP_RoverHandling
 
 rover_Handling:
 	MOV  R1, [KEY_PRESSING]
-	CMP  R1, NULL
+	CMP  R1, 0000H
 	JZ   rover_VerifyBounds  ; the key 0 is being held down
 	CMP  R1, 0002H
 	JZ   rover_VerifyBounds  ; the key 2 is being held down
@@ -763,25 +787,25 @@ rover_Handling:
 rover_VerifyBounds:
 	MOV  R2, [GAME_STATE]
 	CMP  R2, IN_GAME
-	JNZ  rover_Handling    ; if no game is elapsed, then it doesn't move the rover
+	JNZ  rover_Handling     ; if no game is elapsed, then it doesn't move the rover
 
-	SUB  R1, 0001H         ; gets the direction the rover should move in
+	SUB  R1, 0001H          ; gets the direction the rover should move in
 	MOV  R0, ROVER
+	MOV  R2, [R0]           ; gets the old X coordinate of the rover
+	ADD  R2, R1             ; gets the new X coordinate of the rover
 
-	MOV  R2, [R0]
-	ADD  R2, R1            ; gets the new X coordinate of the rover
-
-	JN   rover_Handling    ; the rover tries to move to the left, but it's on column 0
+	JN   rover_Handling     ; the rover tries to move to the left, but it's on column 0
 	MOV  R1, MAX_COL_ROVER
 	CMP  R2, R1
-	JGT  rover_Handling    ; the rover tries to move to the right, but it reached it's limit
+	JGT  rover_Handling     ; the rover tries to move to the right, but it reached it's limit
 
-	MOV  R1, ROVER_DELAY   ; prepares the delay of the drawing
+	MOV  R1, ROVER_DELAY    ; prepares the delay of the drawing
 
 ; ----------------------------------------------------------------------------
 ; rover_Move: Delays the moving of the rover without being nosy with the rest
 ; of the program. Also erases the old rover, updates it's X coordinate and
 ; paints it in the new position.
+; - R2 -> new X coordinate of the rover
 ; ----------------------------------------------------------------------------
 
 rover_Move:
@@ -807,12 +831,12 @@ rover_Reset:
 	PUSH R1
 
 	MOV  R0, ROVER
-	MOV  R1, ROVER_START_POS_X
-	MOV  [R0], R1  ; resets the rover's X current position to the starting position
+	MOV  R1, ROVER_START_POS_X  ; resets the rover's X current position
+	MOV  [R0], R1               ; to the starting position
 
 	ADD  R0, NEXT_WORD
-	MOV  R1, ROVER_START_POS_Y
-	MOV  [R0], R1  ; resets the rover's Y current position to the starting position
+	MOV  R1, ROVER_START_POS_Y  ; resets the rover's Y current posistion
+	MOV  [R0], R1               ; to the starting position
 
 	POP  R1
 	POP  R0
@@ -832,36 +856,36 @@ PROCESS SP_EnergyHandling
 ; ----------------------------------------------------------------------------
 
 energy_Handling:
-	MOV  R0, [ENERGY_CHANGE]     ; gets the value to increase/decrease the energy of the rover
+	MOV  R0, [ENERGY_CHANGE]       ; gets the value to increase/decrease the energy of the rover
 
 	MOV  R2, [GAME_STATE]
 	CMP  R2, IN_GAME
-	JNZ  energy_Handling         ; if no game is elapsed, then there is no energy to update
+	JNZ  energy_Handling           ; if no game is elapsed, then there is no energy to update
 
-	MOV  R1, [ENERGY_HEX]        ; obtains the current energy
-	ADD  R1, R0                  ; adds the current energy with the amount to increase/decrease
+	MOV  R1, [ENERGY_HEX]          ; obtains the current energy
+	ADD  R1, R0                    ; adds the current energy with the amount to increase/decrease
 
-	MOV  R2, ENERGY_HEX_MAX      ; obtains the maximum value of energy
-	CMP  R1, R2                  ; compares current energy value with maximum energy value
-	JGT  energy_Handling_MaxLim  ; when the energy exceeds the limit it also becomes stuck at the maximum
+	MOV  R2, ENERGY_HEX_MAX        ; obtains the maximum value of energy
+	CMP  R1, R2                    ; compares current energy value with maximum energy value
+	JGT  energy_Handling_MaxLim    ; when the energy exceeds the limit it also becomes stuck at the maximum
 	CMP  R1, NULL
-	JLE  energy_Handling_MinLim  ; if the energy becomes negative it becomes stuck at 0
+	JLE  energy_Handling_MinLim    ; if the energy becomes negative it becomes stuck at 0
 
 	JMP  energy_Handling_Display
 
 energy_Handling_MaxLim:
-	MOV  R1, ENERGY_HEX_MAX      ; makes the value of the energy stuck at the maximum
+	MOV  R1, ENERGY_HEX_MAX        ; makes the value of the energy stuck at the maximum
 	JMP  energy_Handling_Display
 
 energy_Handling_MinLim:
-	MOV  R1, ENERGY_HEX_MIN      ; makes the value of the energy stuck at the minimum
-	CALL game_OverBecauseEnergy  ; the rover reached the end of it's time
+	MOV  R1, ENERGY_HEX_MIN        ; makes the value of the energy stuck at the minimum
+	CALL game_OverBecauseEnergy    ; the rover reached the end of it's time
 
 energy_Handling_Display:
-	MOV  [ENERGY_HEX], R1        ; updates the new value of the energy
+	MOV  [ENERGY_HEX], R1          ; updates the new value of the energy
 
-	CALL hextodec_Convert
-	MOV  [DISPLAYS], R0          ; updates the value in the displays
+	CALL hextodec_Convert          ; value in R1 is going to be converted and stored in R0
+	MOV  [DISPLAYS], R0            ; updates the value in the displays
 	JMP  energy_Handling
 
 ; ----------------------------------------------------------------------------
@@ -873,10 +897,10 @@ energy_Reset:
 	PUSH R1
 
 	MOV  R1, ENERGY_HEX_MAX
-	MOV  [ENERGY_HEX], R1  ; resets the current energy to maximum energy
+	MOV  [ENERGY_HEX], R1    ; resets the current energy to maximum energy
 
 	CALL hextodec_Convert
-	MOV  [DISPLAYS], R0    ; resets the value in the display in decimal form
+	MOV  [DISPLAYS], R0      ; resets the value in the display in decimal form
 
 	POP  R1
 	POP  R0
@@ -884,9 +908,9 @@ energy_Reset:
 
 ; ----------------------------------------------------------------------------
 ; hextodec_Convert: Given any hexadecimal value it converts it into 12 bits,
-; where each group of 4 bits represent the a digit of the decimal version.
-; - R1 -> hexadecimal number to convert
+; where each group of 4 bits represent a digit of the decimal version.
 ; - R0 -> hexadecimal converted into decimal in the form of 12 bits
+; - R1 -> hexadecimal number to convert
 ; ----------------------------------------------------------------------------
 
 hextodec_Convert:
@@ -918,7 +942,8 @@ hextodec_Convert:
 	RET
 
 ;=============================================================================
-; MISSILE:
+; MISSILE: Deals with the shooting and movement of the missile, a 1x1 pixel
+; that can destroy invaders.
 ;=============================================================================
 
 PROCESS SP_MissileHandling
@@ -930,11 +955,11 @@ PROCESS SP_MissileHandling
 
 missile_Handling:
 	MOV  R0, [KEY_PRESSED]
-	CMP  R0, 0001H            ; checks if the key currently being pressed is key 1
+	CMP  R0, 0001H          ; checks if the key currently being pressed is key 1
 	JNZ  missile_Handling
 
 	MOV  R0, [GAME_STATE]
-	CMP  R0, IN_GAME          ; checks if the game is not paused or at the start/end
+	CMP  R0, IN_GAME        ; checks if the game is not paused or at the start/end
 	JNZ  missile_Handling
 
 ; ----------------------------------------------------------------------------
@@ -955,13 +980,13 @@ missile_InitDraw:
 
 	CALL image_Draw           ; draws the initial missile on the screen
 	MOV  R4, 6
-	MOV  [SOUND_PLAY], R4     ; plays the shooting sound when a missile is shot
+	MOV  [MEDIA_PLAY], R4     ; plays the shooting sound when a missile is shot
 	MOV  R4, ENERGY_MISSILE_CONSUMPTION
 	MOV  [ENERGY_CHANGE], R4  ; drains 5% of the energy per missile shot
 
 ; ----------------------------------------------------------------------------
-; missile_VerifyBounds: Verifies if the missile collided with a meteor or if
-; it reached the maximum line it can be at.
+; missile_VerifyBounds: Verifies if the missile has collided with a meteor or
+; if it reached the maximum line it can be at.
 ; ----------------------------------------------------------------------------
 
 missile_VerifyBounds:
@@ -973,7 +998,7 @@ missile_VerifyBounds:
 
 	MOV  R1, [R0]              ; obtains the column of the missile
 	CMP  R1, NULL              ; checks if the missile has collided with a meteor
-	JZ   missile_Handling
+	JZ   missile_Handling      ; because the missile has reset it's column
 
 	CALL image_Erase           ; deletes the missile from the pixelscreen
 
@@ -986,17 +1011,17 @@ missile_VerifyBounds:
 ; ----------------------------------------------------------------------------
 ; missile_Move: Actually moves the missile one line above it's previous
 ; position.
+; - R1 -> new line of the missile
 ; ----------------------------------------------------------------------------
 
 missile_Move:
 	MOV  [R0 + R3], R1        ; updates the missile line after verifying it's safe to do so
 	CALL image_Draw           ; draws the missile on the new position
-
 	JMP  missile_VerifyBounds
 
 ; ----------------------------------------------------------------------------
-; missile_Reset: Resets the missile to it's original state (both coordinates
-; at zero) that represent the missile out of the screen.
+; missile_Reset: Resets the missile to it's original position, with the X
+; coordinate at 0.
 ; ----------------------------------------------------------------------------
 
 missile_Reset:
@@ -1008,7 +1033,7 @@ missile_Reset:
 	MOV  [R0], R1
 
 	ADD  R0, NEXT_WORD
-	MOV  R1, MISSILE_START_POS_Y  ; resets the missile's X current position to zero
+	MOV  R1, MISSILE_START_POS_Y  ; resets the missile's X current position
 	MOV  [R0], R1
 
 	POP  R1
@@ -1041,7 +1066,7 @@ meteor_Handling:
 ; ----------------------------------------------------------------------------
 
 meteor_VerifyConditions:
-	MOV  R1, [MOVE_METEOR]    ; constants that controls the movement of meteors
+	MOV  R1, [MOVE_METEOR]    ; constant that controls the movement of meteors
 
 	MOV  R1, [GAME_STATE]
 	CMP  R1, IN_GAME          ; checks if the game is not paused or at the start/end
@@ -1069,31 +1094,33 @@ meteor_VerifyBounds:
 ; ----------------------------------------------------------------------------
 ; meteor_Upgrade: Checks if it needs to upgrade the meteor size. Every 3 moves
 ; starting on line 0, the meteor upgrades size until it reaches the max size.
+; - R1 -> potentially new line of the meteor
 ; ----------------------------------------------------------------------------
 
 meteor_Upgrade:
-	CMP  R1, NULL       ; if the meteor is outside the top of the screen
-	JLE  meteor_Move    ; or at line 0 no upgrade happens
+	CMP  R1, NULL
+	JZ   meteor_Move      ; if the meteor is at line 0 no upgrade happens
 	MOV  R2, MAX_LIN_METEOR_CHANGE
 	CMP  R1, R2
-	JGT  meteor_Move    ; all meteors after this line are at max size already
+	JGT  meteor_Move      ; all meteors after this line are at max size already
 
 	MOV  R4, R1
-	MOV  R2, 0003H      ; every 3 moves the size of the meteor upgrades
+	MOV  R2, 0003H        ; every 3 moves the size of the meteor upgrades
 	MOD  R4, R2
-	JNZ  meteor_Move    ; if the line is not a multiple of 3 it doesn't upgrade
+	JNZ  meteor_Move      ; if the line is not a multiple of 3 it doesn't upgrade
 
-	MOV  R2, 0008H      ; used to get the meteor type
-	MOV  R4, [R0 + R2]  ; gets the current meteor type
-	ADD  R4, NEXT_WORD  ; upgrades the meteor size to the next tier
-	MOV  [R0 + R2], R4  ; saves the new meteor size
+	MOV  R2, GET_TYPE
+	MOV  R4, [R0 + R2]    ; gets the current meteor type
+	ADD  R4, NEXT_WORD    ; upgrades the meteor size to the next tier
+	MOV  [R0 + R2], R4    ; saves the new meteor size
 
-	MOV  R2, 0006H      ; used to get the meteor pattern
-	MOV  R3, [R4]       ; gets the new meteor pattern
-	MOV  [R0 + R2], R3  ; upgrades the meteor pattern
+	MOV  R2, GET_PATTERN
+	MOV  R3, [R4]         ; gets the new meteor pattern
+	MOV  [R0 + R2], R3    ; upgrades the meteor pattern
 
 ; ----------------------------------------------------------------------------
 ; meteor_Move: Moves the meteor one line down it's previous position.
+; - R1 -> new Y coordinate of the meteor
 ; ----------------------------------------------------------------------------
 
 meteor_Move:
@@ -1113,14 +1140,14 @@ meteor_MissileCollisionCheck:
 	MOV  R2, [R1 + R4]  ; gets the Y coordinate of the missile
 	MOV  R3, [R0 + R4]  ; gets the Y coordinate of the meteor
 	SUB  R2, R3         ; calculates the Y position of the missile in relation to the meteor
-	CMP  R2, 0005H      ; if the distance between them is greater than 5 no collision happens
+	CMP  R2, 0005H      ; if the distance between them is greater than or equal to 5 no collision happens
 	JGE  meteor_RoverCollisionCheck
 
 	MOV  R2, [R1]                    ; gets the X coordinate of the missile
 	MOV  R3, [R0]                    ; gets the X coordinate of the meteor
 	SUB  R2, R3                      ; calculates the X position of the missile in relation to the meteor
 	JN   meteor_RoverCollisionCheck  ; if the missile is to the left of the meteor no collision happens
-	CMP  R2, 0005H                   ; if the distance between them is greater than 5 when he is to the right
+	CMP  R2, 0005H                   ; if the distance between them is greater than or equal to 5 when he is to the right
 	JGE  meteor_RoverCollisionCheck  ; no collision happens
 
 	JMP  meteor_MissileCollision     ; if all those conditions don't hold, then a collision happened
@@ -1131,7 +1158,7 @@ meteor_RoverCollisionCheck:
 	MOV  R2, [R1 + R4]  ; gets the Y coordinate of the rover
 	MOV  R3, [R0 + R4]  ; gets the Y coordinate of the meteor
 	SUB  R2, R3         ; calculates the Y position of the rover in relation to the meteor
-	CMP  R2, 0005H      ; if the distance between them is greater than 5 no collision happens
+	CMP  R2, 0005H      ; if the distance between them is greater than or equal to 5 no collision happens
 	JGE  meteor_VerifyConditions
 
 	MOV  R2, [R1]    ; gets the X coordinate of the rover
@@ -1143,7 +1170,7 @@ meteor_RoverCollisionCheck:
 	CMP  R2, R4
 	JLE  meteor_VerifyConditions
 
-	MOV  R4, 0008H      ; used to get the meteor's type
+	MOV  R4, GET_TYPE
 	MOV  R3, [R0 + R4]  ; gets the current type of the meteor
 	MOV  R2, GOOD_METEOR_PATTERNS
 	CMP  R3, R2         ; if the meteor type is good then it jumps to the correct routine
@@ -1160,14 +1187,15 @@ meteor_BadRoverCollision:
 
 ; ----------------------------------------------------------------------------
 ; meteor_GoodRoverCollision: Increases the energy of the rover after it has
-; collided with a good meteor, deletes the meteor and generates a new one.
+; collided with a good meteor playing the correct sound, deletes the meteor
+; and generates a new one.
 ; ----------------------------------------------------------------------------
 
 meteor_GoodRoverCollision:
 	MOV  R1, ENERGY_GOOD_METEOR_INCREASE
 	MOV  [ENERGY_CHANGE], R1  ; increases 10% of the energy after the collision with a good meteor
 	MOV  R1, 8
-	MOV  [SOUND_PLAY], R1     ; plays the sound when a good meteor collides with the rover
+	MOV  [MEDIA_PLAY], R1     ; plays the sound when a good meteor collides with the rover
 
 	CALL image_Erase          ; erases the meteor
 	JMP  meteor_Random        ; finds a new position and type for the meteor at random
@@ -1178,24 +1206,27 @@ meteor_GoodRoverCollision:
 ; ----------------------------------------------------------------------------
 
 meteor_MissileCollision:
-	CALL image_Erase     ; erases the current meteor
+	CALL image_Erase       ; erases the current meteor
 	MOV  R0, MISSILE
-	CALL image_Erase     ; erases the missile because it collided with the meteor
-	CALL missile_Reset   ; resets the missile it collided with
+	CALL image_Erase       ; erases the missile because it collided with the meteor
+	CALL missile_Reset     ; resets the missile it collided with
 
-	MOV  R0, [R9 + R10]  ; gets the meteor back into R0
+	MOV  R0, [R9 + R10]    ; gets the meteor back into R0
 	MOV  R4, EXPLODED_METEOR_PATTERN
-	MOV  R3, 0008H       ; used to get the meteor's type
-	MOV  R5, [R0 + R3]   ; backs up the type of the meteor into R5
-	MOV  R3, 0006H       ; used to get the meteor's pattern
-	MOV  [R0 + R3], R4   ; replaces the old meteor with an exploded one
+	MOV  R3, GET_TYPE
+	MOV  R5, [R0 + R3]     ; backs up the type of the meteor into R5
+	MOV  R3, GET_PATTERN
+	MOV  [R0 + R3], R4     ; replaces the old meteor with an exploded one
 
-	CALL image_Draw      ; draws the exploded meteor
+	CALL image_Draw        ; draws the exploded meteor
+	MOV  R1, 7
+	MOV  [MEDIA_PLAY], R1  ; plays the sound when a bad meteor explodes
 	MOV  R1, METEOR_EXPLODED_DELAY
 
 ; ----------------------------------------------------------------------------
 ; meteor_Exploded: Delays the screentime of the exploded meteor and then
 ; removes it from the screen.
+; - R5 -> type of the meteor that exploded
 ; ----------------------------------------------------------------------------
 
 meteor_Exploded:
@@ -1205,11 +1236,9 @@ meteor_Exploded:
 
 	CALL image_Erase          ; erases the exploded meteor after a little while
 	MOV  R2, GOOD_METEOR_PATTERNS
-	CMP  R5, R2               ; if the meteor type is good then it jumps to the correct routine
+	CMP  R5, R2               ; if the meteor type is good then it jumps to the correct label
 	JGE  meteor_Random
 
-	MOV  R1, 7
-	MOV  [SOUND_PLAY], R1     ; plays the sound when a bad meteor explodes
 	MOV  R1, ENERGY_INVADER_INCREASE
 	MOV  [ENERGY_CHANGE], R1  ; a bad meteor was destroyed so the energy increases
 	JMP  meteor_Random
@@ -1218,13 +1247,10 @@ meteor_Exploded:
 ; meteor_Random: Resets a single meteor to the top of the screen and uses the
 ; PIN peripheral to generate pseudo-random values for the column and meteor
 ; type.
+; - R0 -> meteor that needs new randomly generated information
 ; ----------------------------------------------------------------------------
 
 meteor_Random:
-	PUSH R1
-	PUSH R2
-	PUSH R3
-
 	MOV  R2, PIN
 	MOVB R1, [R2]   ; reads value from the PIN
 	SHR  R1, 5      ; saves only the pseudo-random bits into R1
@@ -1235,14 +1261,14 @@ meteor_Random:
 	MOV  R3, METEOR_START_POS_Y
 	MOV  [R0 + R4], R3  ; resets the meteor's Y coordinate
 
-	MOV  R4, 0006H      ; used to access the meteor's pattern
+	MOV  R4, GET_PATTERN
 	MOV  R3, METEOR_TINY_PATTERN
 	MOV  [R0 + R4], R3  ; resets the meteor's pattern to the tiny meteor
 
 	MOVB R1, [R2]                  ; reads new random value from the PIN
 	SHR  R1, 5                     ; saves only the pseudo-random bits into R1
 	CMP  R1, 0002H                 ; 25% chance of getting a good meteor if
-	JLE  meteor_Random_GoodMeteor  ; the value generated is 0 or 1
+	JLT  meteor_Random_GoodMeteor  ; the value generated is 0 or 1
 	MOV  R3, BAD_METEOR_PATTERNS   ; 75% chance of getting a bad meteor if the value is between 2 and 7
 	JMP  meteor_Random_Return
 
@@ -1250,12 +1276,8 @@ meteor_Random_GoodMeteor:
 	MOV  R3, GOOD_METEOR_PATTERNS
 
 meteor_Random_Return:
-	MOV  R4, 0008H                 ; used to access the meteor's type
-	MOV  [R0 + R4], R3             ; sets the meteor's new type
-
-	POP  R3
-	POP  R2
-	POP  R1
+	MOV  R4, GET_TYPE
+	MOV  [R0 + R4], R3  ; sets the meteor's new type
 	JMP  meteor_VerifyConditions
 
 ; ----------------------------------------------------------------------------
@@ -1281,7 +1303,7 @@ meteors_Reset_Loop:
 
 	MOV  R2, METEOR_4
 	CMP  R1, R2                  ; if the last meteor got reset it stops resetting
-	JLE  meteors_Reset_Loop
+	JLT  meteors_Reset_Loop
 
 	POP  R2
 	POP  R1
@@ -1289,12 +1311,12 @@ meteors_Reset_Loop:
 	RET
 
 ;=============================================================================
-; INTERRUPTION HANDLING:
+; INTERRUPTION HANDLING: Handles all of the interruptions used in the game.
 ;=============================================================================
 
 ; ----------------------------------------------------------------------------
 ; inte_MoveMeteor: Interruption that indicates when the meteors should move
-; (400 milliseconds).
+; (350 milliseconds).
 ; ----------------------------------------------------------------------------
 
 inte_MoveMeteor:
@@ -1312,14 +1334,14 @@ inte_MoveMissile:
 
 ; ----------------------------------------------------------------------------
 ; inte_EnergyDepletion: Interruption that indicates when the rover should lose
-; 5% of it's energy by moving around (3 seconds).
+; 5% of it's energy by moving around (3.5 seconds).
 ; ----------------------------------------------------------------------------
 
 inte_EnergyDepletion:
 	PUSH R0
 
 	MOV  R0, ENERGY_MOVEMENT_CONSUMPTION
-	MOV  [ENERGY_CHANGE], R0  ; depleats 5% of the rover's energy every 3 seconds
+	MOV  [ENERGY_CHANGE], R0  ; depleats 5% of the rover's energy every 3.5 seconds
 
 	POP  R0
 	RFE
