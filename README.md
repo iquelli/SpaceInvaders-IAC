@@ -1,6 +1,6 @@
-<img src="docs/spaceinvanders-tecas.png" width="200">
+<div align="center"><img src="docs/spaceinvanders-tecas.png" width="100">
 
-__👾 Space Invaders (Project IAC)__
+__👾 Space Invaders (Project IAC)__</div>
 ___
 This project consisted in recreating the old [space invaders](https://en.wikipedia.org/wiki/Space_Invaders) game in PEPE Assembly.
 
