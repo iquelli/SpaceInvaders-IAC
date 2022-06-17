@@ -492,7 +492,7 @@ game_End:
 	MOV  [MEDIA_STOP], R0      ; stops the game music because the game ended (value of R0 doesn't matter)
 	MOV  R0, 0
 	MOV  [MEDIA_CYCLE], R0     ; plays the ending game video
-	ADD  R0, 1                 ; sets the next to transition to
+	ADD  R0, 1                 ; sets the next video to transition to
 	MOV  [MENU_ANIMATION], R0
 	JMP  game_Handling
 
@@ -569,7 +569,7 @@ key_Sweeper:
 	MOV  R4, 000FH
 
 key_Sweeper_Wait:
-	YIELD                  ; makes the processor sleep if all the other processes are locked
+	YIELD                  ; looks at the keypad in a non nosy way
 
 	MOVB [R0], R2          ; sends the value of the line currently being analysed to the line peripheral
 	MOVB R3, [R1]          ; saves the value of the column from the peripheral
@@ -1147,7 +1147,7 @@ meteor_RoverCollisionCheck:
 	MOV  R4, GET_TYPE
 	MOV  R3, [R0 + R4]  ; gets the current type of the meteor
 	MOV  R2, GOOD_METEOR_PATTERNS
-	CMP  R3, R2         ; if the meteor type is good then it jumps to the correct routine
+	CMP  R3, R2         ; if the meteor type is good then it jumps to the correct label
 	JGE  meteor_GoodRoverCollision
 
 ; ----------------------------------------------------------------------------
