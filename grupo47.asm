@@ -717,7 +717,7 @@ image_Draw_Return:
 ; ----------------------------------------------------------------------------
 
 pixel_Draw:
-    PUSH R0
+        PUSH R0
 
 	JNC  pixel_Draw_Return      ; if the carry is not 1, pixel is not colored
 
