@@ -1,9 +1,9 @@
 __Intermediate Version:__
 
-- GRADE: /5.0
-- Basic functionality: /1.0
-- Structure of the data and code: /3.0
-- Comments: /1.0
+- GRADE: 5.0/5.0
+- Basic functionality: 1.0/1.0
+- Structure of the data and code: 3.0/3.0
+- Comments: 1.0/1.0
 ___
 __Final Version:__
 
