@@ -149,7 +149,7 @@ SP_EnergyHandling:
 ; - The sixth WORD contains the color to paint the image.
 ; - The rest of the WORD's are used to define the pattern of each line, each
 ;   one represents a line with 0's (uncolored pixels) and 1's (colored pixels).
-; - In the meteors the last WORD is for the type of meteor it currently is.
+; - In the meteors, the last WORD is for the type of meteor it currently is.
 ;=============================================================================
 
 ROVER:
@@ -507,7 +507,7 @@ game_OverBecauseMeteor:
 	JMP  game_Over
 
 ; ----------------------------------------------------------------------------
-; game_Reset: Resets all of the information of the current game.
+; game_Reset: Resets the information of the current game.
 ; ----------------------------------------------------------------------------
 
 game_Reset:
@@ -546,9 +546,9 @@ key_Sweeper:
 	MOV  R4, 000FH
 
 key_Sweeper_Wait:
-	YIELD                  ; looks at the keypad in a non nosy way
+	YIELD                  ; looks at the keypad in a non-nosy way
 
-	MOVB [R0], R2          ; sends the value of the line currently being analysed to the line peripheral
+	MOVB [R0], R2          ; sends the value of the line currently being analyzed to the line peripheral
 	MOVB R3, [R1]          ; saves the value of the column from the peripheral
 	AND  R3, R4            ; obtains only the bits 0-3 from the column peripheral
 	JNZ  key_Convert       ; if the key is pressed it continues down the process
@@ -605,7 +605,7 @@ key_CheckChange:
 ;=============================================================================
 
 ; ----------------------------------------------------------------------------
-; image_Draw: Draws an image received as an argument into the pixelscreen.
+; image_Draw: Draws an image received as an argument into the pixel screen.
 ; It knows the top left coordinate, the dimensions of the image, the image
 ; pattern, image color in order to paint it and the screen to paint in.
 ; - R0 -> image table to draw
@@ -792,7 +792,7 @@ rover_Reset:
 	MOV  [R0], R1               ; to the starting position
 
 	ADD  R0, NEXT_WORD
-	MOV  R1, ROVER_START_POS_Y  ; resets the rover's Y current posistion
+	MOV  R1, ROVER_START_POS_Y  ; resets the rover's Y current position
 	MOV  [R0], R1               ; to the starting position
 
 	POP  R1
@@ -883,7 +883,7 @@ hextodec_Convert:
 	DIV  R0, R3            ; obtains the first digit
 	MOD  R1, R3            ; takes out the first digit
 
-	MOV  R2, R1            ; moves the remaning value to a new register
+	MOV  R2, R1            ; moves the remaining value to a new register
 	DIV  R2, R4            ; obtains the second digit
 	SHL  R0, 4             ; isolates the first digit
 	OR   R0, R2            ; adds the second one
@@ -953,7 +953,7 @@ missile_VerifyBounds:
 	CMP  R1, NULL              ; checks if the missile has collided with a meteor
 	JZ   missile_Handling      ; because the missile has reset it's column
 
-	CALL image_Draw            ; deletes the missile from the pixelscreen
+	CALL image_Draw            ; deletes the missile from the pixel screen
 
 	MOV  R3, NEXT_WORD         ; used to obtain the address of the missile's line
 	MOV  R1, [R0 + R3]         ; obtains the current line of the missile
@@ -971,12 +971,12 @@ missile_VerifyBounds:
 ; ----------------------------------------------------------------------------
 
 missile_Move:
-	MOV  [R0 + R3], R1        ; updates the missile line after verifying it's safe to do so
-	CALL image_Draw           ; draws the missile on the new position
+	MOV  [R0 + R3], R1         ; updates the missile line after verifying it's safe to do so
+	CALL image_Draw            ; draws the missile on the new position
 	JMP  missile_VerifyBounds
 
 ; ----------------------------------------------------------------------------
-; missile_Reset: Resets the missile to it's original position, with the X
+; missile_Reset: Resets the missile to its original position, with the X
 ; coordinate at 0.
 ; ----------------------------------------------------------------------------
 
@@ -1015,6 +1015,7 @@ meteor_Handling:
 	MOV  SP, [R9 + R10]      ; restarts the SP with the correct LIFO
 	MOV  R9, METEOR_LIST
 	MOV  R0, [R9 + R10]      ; saves the meteor we will move in R0
+	JMP  meteor_Random       ; finds new information for the meteor
 
 ; ----------------------------------------------------------------------------
 ; meteor_VerifyBounds: Verifies if there is an elapsed game and unblocks
@@ -1033,7 +1034,7 @@ meteor_VerifyBounds:
 	CMP  R1, NULL
 	JZ   meteor_Random        ; if the meteor is new it finds information for it
 
-	CALL image_Draw           ; erases the old meteor from it's position
+	CALL image_Draw           ; erases the old meteor from its position
 
 	MOV  R2, NEXT_WORD
 	MOV  R1, [R0 + R2]        ; obtains the old line of the meteor
@@ -1070,7 +1071,7 @@ meteor_Upgrade:
 	MOV  [R0 + R2], R3    ; upgrades the meteor pattern
 
 ; ----------------------------------------------------------------------------
-; meteor_Move: Moves the meteor one line down it's previous position.
+; meteor_Move: Moves the meteor one line down its previous position.
 ; - R1 -> new Y coordinate of the meteor
 ; ----------------------------------------------------------------------------
 
@@ -1114,7 +1115,7 @@ meteor_RoverCollisionCheck:
 
 	MOV  R2, [R1]    ; gets the X coordinate of the rover
 	MOV  R3, [R0]    ; gets the X coordinate of the meteor
-	SUB  R2, R3      ; calculates the X positon of the rover in relation to the meteor
+	SUB  R2, R3      ; calculates the X position of the rover in relation to the meteor
 	CMP  R2, 0005H   ; if the rover is a distance of 5 to the right of the meteor no collision happens
 	JGE  meteor_VerifyBounds
 	MOV  R4, 0FFFBH  ; if the rover is a distance of 5 to the left of the meteor no collision happens
@@ -1175,14 +1176,14 @@ meteor_MissileCollision:
 	MOV  R1, METEOR_EXPLODED_DELAY
 
 ; ----------------------------------------------------------------------------
-; meteor_Exploded: Delays the screentime of the exploded meteor and then
+; meteor_Exploded: Delays the screen time of the exploded meteor and then
 ; removes it from the screen.
 ; - R5 -> type of the meteor that exploded
 ; ----------------------------------------------------------------------------
 
 meteor_Exploded:
-	SUB  R1, 0001H            ; delays the screentime of the exploded meteor
-	YIELD                     ; does it in a non nosy way
+	SUB  R1, 0001H            ; delays the screen time of the exploded meteor
+	YIELD                     ; does it in a non-nosy way
 	JNZ  meteor_Exploded
 
 	CALL image_Draw           ; erases the exploded meteor after a little while
@@ -1262,7 +1263,7 @@ meteors_Reset_Loop:
 	RET
 
 ;=============================================================================
-; INTERRUPTION HANDLING: Handles all of the interruptions used in the game.
+; INTERRUPTION HANDLING: Handles all the interruptions used in the game.
 ;=============================================================================
 
 ; ----------------------------------------------------------------------------
@@ -1285,14 +1286,14 @@ inte_MoveMissile:
 
 ; ----------------------------------------------------------------------------
 ; inte_EnergyDepletion: Interruption that indicates when the rover should lose
-; 5% of it's energy by moving around (3.5 seconds).
+; 5% of its energy by moving around (3.5 seconds).
 ; ----------------------------------------------------------------------------
 
 inte_EnergyDepletion:
 	PUSH R0
 
 	MOV  R0, ENERGY_MOVEMENT_CONSUMPTION
-	MOV  [ENERGY_CHANGE], R0  ; depleats 5% of the rover's energy every 3.5 seconds
+	MOV  [ENERGY_CHANGE], R0  ; depletes 5% of the rover's energy every 3.5 seconds
 
 	POP  R0
 	RFE
