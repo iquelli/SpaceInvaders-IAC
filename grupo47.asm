@@ -1015,7 +1015,6 @@ meteor_Handling:
 	MOV  SP, [R9 + R10]      ; restarts the SP with the correct LIFO
 	MOV  R9, METEOR_LIST
 	MOV  R0, [R9 + R10]      ; saves the meteor we will move in R0
-	JMP  meteor_Random       ; finds brand new information for the meteor
 
 ; ----------------------------------------------------------------------------
 ; meteor_VerifyBounds: Verifies if there is an elapsed game and unblocks
@@ -1029,6 +1028,10 @@ meteor_VerifyBounds:
 	MOV  R1, [GAME_STATE]
 	CMP  R1, IN_GAME          ; checks if the game is not paused or at the start/end
 	JNZ  meteor_VerifyBounds
+
+	MOV  R1, [R0]             ; obtains the column of the meteor
+	CMP  R1, NULL
+	JZ   meteor_Random        ; if the meteor is new it finds information for it
 
 	CALL image_Draw           ; erases the old meteor from its position
 
@@ -1189,6 +1192,7 @@ meteor_Exploded:
 
 	MOV  R1, ENERGY_INVADER_INCREASE
 	MOV  [ENERGY_CHANGE], R1  ; a bad meteor was destroyed so the energy increases
+	JMP  meteor_Random
 
 ; ----------------------------------------------------------------------------
 ; meteor_Random: Resets a single meteor to the top of the screen and uses the
