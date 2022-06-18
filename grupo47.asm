@@ -57,7 +57,7 @@ PIN                      EQU 0E000H  ; peripheral to generate pseudo-random valu
 NUM_METEORS              EQU 0004H   ; the maximum number of meteors in the screens at any given time
 MAX_LIN                  EQU 0020H   ; the total number of lines the screen has
 MAX_LIN_METEOR_CHANGE    EQU 000CH   ; the maximum line where the meteor changes size
-METEOR_EXPLODED_DELAY    EQU 0F00H  ; delay that let's the meteor stay exploded on the screen
+METEOR_EXPLODED_DELAY    EQU 0F00H   ; delay that let's the meteor stay exploded on the screen
 METEOR_START_POS_Y       EQU 0FFFFH  ; the starting Y position of any meteors top left pixel
 METEOR_TINY_DIMENSIONS   EQU 0101H   ; length and height of a tiny meteor
 METEOR_SMALL_DIMENSIONS  EQU 0202H   ; length and height of a small meteor
@@ -72,7 +72,7 @@ EXPLODED_METEOR_COLOR    EQU 0E0FFH  ; color used for an exploded meteor
 MISSILE_DIMENSIONS  EQU 0101H   ; length and height of the missile
 MISSILE_START_POS_Y EQU 001BH   ; the starting Y position of the missile's top left pixel
 MISSILE_COLOR       EQU 0F0F0H  ; color of the missile
-MAX_MISSILE_LINE    EQU 0010H   ; maximum line the missile can go
+MAX_MISSILE_LIN     EQU 0010H   ; maximum line the missile can go
 MISSILE_SCREEN      EQU 0004H   ; screen to draw the missile in
 
 IN_MENU    EQU 0000H  ; value when the user is in a menu
@@ -92,8 +92,6 @@ GET_TYPE     EQU 0008H  ; used to get the meteor's type
 ;=============================================================================
 
 PLACE 1000H
-
-INTE_SWITCH: LOCK TRUE  ; variable used to tell when to switch interruptions on or off
 
 GAME_STATE:     WORD IN_MENU  ; variable that stores the current game state
 MENU_ANIMATION: WORD 1        ; variable that controls what animation will be played next
@@ -318,7 +316,7 @@ init:
 	MOV  SP, SP_Main          ; initializes the main stack pointer
 	MOV  BTE, inte_Tab        ; initializes the interruption table
 
-	CALL game_Menu            ; stars the initial game menu
+	CALL game_Menu            ; starts the initial game menu
 
 	EI0
 	EI1
@@ -337,19 +335,12 @@ init:
 	CALL energy_Handling      ; process used to change the energy of the rover during the game
 
 ; ----------------------------------------------------------------------------
-; main: Starts the main loop of the program. The main process is used to
-; switch the interruptions on or off based on the locked variable.
+; main: Starts the main loop of the program.
 ; ----------------------------------------------------------------------------
 
 main:
-	MOV  R0, [INTE_SWITCH]  ; only unlocks when the variable wants to switch
-	CMP  R0, TRUE           ; the interruption state
-	JNZ  inte_SwitchOff     ; switches interruptions off
-	EI                      ; switches interruptions on
+	YIELD
 	JMP  main
-	inte_SwitchOff:
-		DI
-		JMP  main
 
 ;=============================================================================
 ; GAME STATES: Controls the current state of the game.
@@ -405,9 +396,6 @@ game_Init:
 
 	CALL energy_Reset
 
-	MOV  R0, TRUE
-	MOV  [INTE_SWITCH], R0        ; switches on all interruptions in case they were off
-
 	MOV  [MEDIA_STOP], R0         ; stops the previous video that was playing (value of R0 doesn't matter)
 	MOV  R0, [MENU_ANIMATION]     ; gets the video to transition to
 	MOV  [MEDIA_PLAY], R0         ; plays the game starting video
@@ -447,9 +435,6 @@ game_PauseHandling:
 	JMP  game_Handling            ; if the program is in any other state it does nothing
 
 game_Pause:
-	MOV  R0, FALSE
-	MOV  [INTE_SWITCH], R0        ; switches off all interruptions
-
 	MOV  R0, 11
 	MOV  [SOUND_PAUSE], R0        ; pauses the game music
 
@@ -461,9 +446,6 @@ game_Pause:
 	JMP  game_Handling
 
 game_Unpause:
-	MOV  R0, TRUE
-	MOV  [INTE_SWITCH], R0        ; switches on all interruptions
-
 	MOV  R0, 11
 	MOV  [SOUND_RESUME], R0       ; resumes the game music
 
@@ -486,9 +468,6 @@ game_End:
 
 	CALL game_Reset
 
-	MOV  R0, FALSE
-	MOV  [INTE_SWITCH], R0     ; switches off all interruptions
-
 	MOV  [MEDIA_STOP], R0      ; stops the game music because the game ended (value of R0 doesn't matter)
 	MOV  R0, 0
 	MOV  [MEDIA_CYCLE], R0     ; plays the ending game video
@@ -508,8 +487,6 @@ game_Over:
 	MOV  [MENU_ANIMATION], R1  ; sets the next video to transition to
 
 	CALL game_Reset
-	MOV  R0, FALSE
-	MOV  [INTE_SWITCH], R0     ; switches off all interruptions
 
 	POP  R1
 	POP  R0
@@ -717,7 +694,7 @@ image_Draw_Return:
 ; ----------------------------------------------------------------------------
 
 pixel_Draw:
-        PUSH R0
+	PUSH R0
 
 	JNC  pixel_Draw_Return      ; if the carry is not 1, pixel is not colored
 
@@ -981,7 +958,7 @@ missile_VerifyBounds:
 	MOV  R3, NEXT_WORD         ; used to obtain the address of the missile's line
 	MOV  R1, [R0 + R3]         ; obtains the current line of the missile
 	SUB  R1, 0001H             ; gets the new line of the missile
-	MOV  R2, MAX_MISSILE_LINE
+	MOV  R2, MAX_MISSILE_LIN
 	CMP  R1, R2                ; checks if the missile doesn't surpass a defined line limit
 	JGE  missile_Move          ; if not it moves the missile
 	CALL missile_Reset         ; if it does surpass the limit, then it resets the missile's original position
