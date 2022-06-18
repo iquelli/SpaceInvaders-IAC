@@ -1015,7 +1015,6 @@ meteor_Handling:
 	MOV  SP, [R9 + R10]      ; restarts the SP with the correct LIFO
 	MOV  R9, METEOR_LIST
 	MOV  R0, [R9 + R10]      ; saves the meteor we will move in R0
-	JMP  meteor_Random       ; finds new information for the meteor
 
 ; ----------------------------------------------------------------------------
 ; meteor_VerifyBounds: Verifies if there is an elapsed game and unblocks
