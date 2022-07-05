@@ -1206,6 +1206,7 @@ meteor_Random:
 	MOVB R1, [R2]   ; reads value from the PIN
 	SHR  R1, 5      ; saves only the pseudo-random bits into R1
 	SHL  R1, 3      ; multiplies it by 8 to find the column of the meteor
+	ADD  R1, 2      ; the meteors start on the second column
 	MOV  [R0], R1   ; saves the random generated column of the meteor
 
 	MOV  R4, NEXT_WORD

@@ -15,4 +15,3 @@ ___
 - [Gonçalo Bárias](https://github.com/Gocho1234)
 - [Raquel Braunschweig](https://github.com/iquelli)
 - [Gustavo Diogo](https://github.com/GMD433)
-

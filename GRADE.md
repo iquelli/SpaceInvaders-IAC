@@ -7,10 +7,10 @@ __Intermediate Version:__
 ___
 __Final Version:__
 
-- GRADE: /15.0
-- Basic functionality: /4.0
-- Structure of the data and code: /6.0
-- Comments: /2.0
-- Various meteors: functionality, data and code: /3.0
+- GRADE: 15.0/15.0
+- Basic functionality: 4.0/4.0
+- Structure of the data and code: 6.0/6.0
+- Comments: 2.0/2.0
+- Various meteors: functionality, data and code: 3.0/3.0
 ___
-- FINAL GRADE: /20.0
+- FINAL GRADE: 20.0/20.0
